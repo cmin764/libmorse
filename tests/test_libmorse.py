@@ -5,7 +5,6 @@ import libmorse
 
 class TestMorse(unittest.TestCase):
 
-    def test_basic(self):
-        data = libmorse.get_res_content("basic.mor")
-        mor_code = libmorse.get_mor_code(data)
+    def test_basic_length(self):
+        mor_code = libmorse.get_mor_code("basic.mor")
         self.assertEqual(47, len(mor_code))

@@ -7,11 +7,12 @@ import os
 # Project directory (package parent).
 PROJECT = os.path.normpath(
     os.path.join(
-        __file__,
-        os.path.pardir,
+        os.path.dirname(__file__),
         os.path.pardir
     )
 )
+ETC = os.path.join(PROJECT, "etc", "libmorse")
+RESOURCE = os.path.join(PROJECT, "res", "libmorse")
 
 # Log information.
 LOGGING = True
@@ -20,4 +21,5 @@ DEBUG = False
 # Logging file.
 LOGFILE = "libmorse.log"
 
+# Misc.
 ENCODING = "utf-8"

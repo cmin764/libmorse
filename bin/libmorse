@@ -1,0 +1,42 @@
+#! /usr/bin/env python
+
+
+import argparse
+import logging
+import sys
+
+import libmorse
+
+
+log = libmorse.get_logger(__name__)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Convert timed signals into alphabet."
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="show debugging messages"
+    )
+    subparser = parser.add_subparsers(title="commands")
+
+    args = parser.parse_args()
+    level = logging.DEBUG if args.verbose else logging.INFO
+    log.setLevel(level)
+    try:
+        args.func(args)
+    except Exception as exc:
+        log.error(repr(exc))
+        # FIXME(cmiN): remove this after releasing a stable version
+        raise
+    else:
+        exc = None
+        log.info("Operation completed successfully.")
+    return libmorse.get_return_code(exc)
+
+
+if __name__ == "__main__":
+    rcode = main()
+    log.debug("Exiting with code %d.", rcode)
+    sys.exit(rcode)

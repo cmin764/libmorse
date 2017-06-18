@@ -10,4 +10,4 @@ class MorseError(Exception):
 class ProcessMorseError(MorseError):
     """Generic exception for any aspect of a processing class/function."""
 
-    CODE = 2
+    CODE = 11

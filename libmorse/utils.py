@@ -1,25 +1,27 @@
 """Various frequently used common utilities."""
 
 
+import json
 import logging
 import os
-
-import mock
 
 from libmorse import exceptions
 from libmorse import settings
 
 
+RES_TEXT = "text"
+RES_JSON = "json"
+
+
 def get_logger(name, debug=settings.DEBUG, use_logging=settings.LOGGING):
     """Obtain a logger object given a name."""
-    if not use_logging:
-        return mock.Mock()
     logging.basicConfig(
         filename=settings.LOGFILE,
-        format="%(levelname)s - %(asctime)s - %(message)s"
+        format="%(levelname)s - %(name)s - %(asctime)s - %(message)s"
     )
     log = logging.getLogger(name)
     level = logging.DEBUG if debug else logging.INFO
+    level = level if use_logging else logging.CRITICAL
     log.setLevel(level)
     return log
 
@@ -33,19 +35,22 @@ def get_return_code(exc):
     return exceptions.MorseError.CODE    # normalize to default error code
 
 
-def get_res(name):
-    """Get resource path based on file name."""
-    return os.path.join(settings.PROJECT, "res", name)
+def get_resource(name, resource_type=RES_TEXT):
+    """Retrieve the content of a resource name."""
+    path = os.path.join(settings.RESOURCE, name)
+    with open(path) as stream:
+        data = stream.read()
+    if resource_type == RES_TEXT:
+        return data
+    if resource_type == RES_JSON:
+        return json.loads(data)
+    raise exceptions.ProcessMorseError(
+        "invalid resource type {!r}".format(resource_type))
 
 
-def get_res_content(name):
-    """Get resource content based on file name."""
-    with open(get_res(name), "r") as stream:
-        return stream.read()
-
-
-def get_mor_code(data):
+def get_mor_code(name):
     """Get MOR code given `data`."""
+    data = get_resource(name).strip()
     if not data:
         return []
 
