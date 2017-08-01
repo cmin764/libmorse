@@ -5,8 +5,7 @@ import json
 import logging
 import os
 
-from libmorse import exceptions
-from libmorse import settings
+from libmorse import exceptions, settings
 
 
 RES_TEXT = "text"
