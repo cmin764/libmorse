@@ -23,3 +23,7 @@ LOGFILE = "libmorse.log"
 
 # Misc.
 ENCODING = "utf-8"
+
+# Translator settings.
+# Minimum and maximum size of the analysed active range of morse signals.
+SIGNAL_RANGE = (12, 128)
