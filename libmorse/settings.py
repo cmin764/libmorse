@@ -26,4 +26,6 @@ ENCODING = "utf-8"
 
 # Translator settings.
 # Minimum and maximum size of the analysed active range of morse signals.
-SIGNAL_RANGE = (12, 128)
+SIGNAL_RANGE = (12, 36)
+# Minimal accepted delta between any two means in percentage of unit.
+MEAN_MIN_DIFF = 1.1
