@@ -1,11 +1,11 @@
 """Bidirectional morse signal interpreter and translator."""
 
 
+import Queue
 import abc
 import collections
 import itertools
 import threading
-from Queue import Queue
 
 import six
 from scipy.cluster.vq import kmeans2
@@ -32,14 +32,28 @@ class BaseTranslator(Logger):
             },
             "offset": 0,
         },
+        "silences": {
+            "type": "silences",
+            "means": 3,
+            "mean_min_diff": settings.MEAN_MIN_DIFF,
+            "min_length": settings.SIGNAL_RANGE[0],
+            "ratios": {
+                morse.INTRA_GAP: 1.0,
+                morse.SHORT_GAP: 3.0,
+                morse.MEDIUM_GAP: 7.0,
+            },
+            "offset": 0,
+        },
     }
 
     def __init__(self, *args, **kwargs):
         super(BaseTranslator, self).__init__(*args, **kwargs)
 
-        self._input_queue = Queue()
-        self._output_queue = Queue()
+        self._input_queue = Queue.Queue()
+        self._output_queue = Queue.Queue()
         self._closed = threading.Event()
+
+        self.unit = settings.UNIT    # average used unit length
 
         self._start()    # start the item processor
 
@@ -53,10 +67,10 @@ class BaseTranslator(Logger):
     def _run(self):
         while True:
             item = self._input_queue.get()
-            self._input_queue.task_done()
             if item == self.CLOSE_SENTINEL:
                 self._closed.set()
                 self._free()
+                self._input_queue.task_done()
                 break
             results = self._process(item)
             if not isinstance(results, (tuple, list, set)):
@@ -65,13 +79,14 @@ class BaseTranslator(Logger):
                 if result != self.CLOSE_SENTINEL:
                     # Add rightful results only.
                     self._output_queue.put(result)
+            self._input_queue.task_done()
 
     def _start(self):
         thread = threading.Thread(target=self._run)
         thread.setDaemon(True)
         thread.start()
 
-    def put(self, item):
+    def put(self, item, **kwargs):
         """Add a new item to the processing queue.
 
         This can be a simple alphabet letter or timed signal.
@@ -84,15 +99,21 @@ class BaseTranslator(Logger):
             raise exceptions.TranslatorMorseError(
                 "put operation on closed translator"
             )
-        self._input_queue.put(item)
+        try:
+            self._input_queue.put(item, **kwargs)
+        except Queue.Full:
+            raise exceptions.TranslatorMorseError("full queue")
 
-    def get(self):
+    def get(self, **kwargs):
         """Retrieve and return from the processed items a new item."""
         if self.closed:
             raise exceptions.TranslatorMorseError(
                 "get operation on closed translator"
             )
-        result = self._output_queue.get()
+        try:
+            result = self._output_queue.get(**kwargs)
+        except Queue.Empty:
+            raise exceptions.TranslatorMorseError("empty queue")
         self._output_queue.task_done()
         return result
 
@@ -104,6 +125,10 @@ class BaseTranslator(Logger):
     def close(self):
         """Close the translator and free resources."""
         self.put(self.CLOSE_SENTINEL)
+
+    def wait(self):
+        """Block until all the items in the queue are processed."""
+        self._input_queue.join()
 
 
 class AlphabetTranslator(BaseTranslator):
@@ -119,9 +144,9 @@ class MorseTranslator(BaseTranslator):
         super(MorseTranslator, self).__init__(*args, **kwargs)
 
         # Actively analysed signals.
-        self._signals = collections.deque(settings.SIGNAL_RANGE[1])
+        self._signals = collections.deque(maxlen=settings.SIGNAL_RANGE[1])
         # Actively analysed silences; the same range may work.
-        self._silences = collections.deque(settings.SIGNAL_RANGE[1])
+        self._silences = collections.deque(maxlen=settings.SIGNAL_RANGE[1])
         # First and last provided items.
         self._begin = None
         self._last = None
@@ -131,18 +156,20 @@ class MorseTranslator(BaseTranslator):
         self._morse_code = []
 
     def _free(self):
-        super(MorseTranslator, self)._free()
         self._signals.clear()
         self._silences.clear()
+        self._morse_signals = []
+        self._morse_silences = []
+        self._morse_code = []
+        super(MorseTranslator, self)._free()
 
-    @classmethod
-    def _get_signal_classes(cls, means, ratios):
+    def _get_signal_classes(self, means, ratios):
         """Classify the means into signal types."""
         classes = []
-        unit = min(means)
+        self.unit = min(means)    # good unit for reference
 
         for mean in means:
-            ratio = mean / unit
+            ratio = mean / self.unit
             # Find closest defined ratio.
             best_class = None
             min_delta = abs(ratios.items()[0][1] - ratio) + 1
@@ -180,7 +207,9 @@ class MorseTranslator(BaseTranslator):
 
     def _parse_morse_code(self):
         """Transform obtained morse code into alphabet."""
-        return self._morse_code
+        code = self._morse_code[:]
+        self._morse_code = []
+        return code
 
     def _process(self, item):
         if not self._begin:
@@ -231,7 +260,7 @@ class MorseTranslator(BaseTranslator):
                 # Starting with a silence first.
                 sets = [sil, sig]
             # Just merge them sequentially.
-            merged = [item for pair in zip(sets) for item in pair]
+            merged = [item for pair in zip(*sets) for item in pair]
             self._morse_code.extend(merged)
             # Then discard the mixed items.
             idx = min([len(collection) for collection in sets])

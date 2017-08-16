@@ -29,3 +29,5 @@ ENCODING = "utf-8"
 SIGNAL_RANGE = (12, 36)
 # Minimal accepted delta between any two means in percentage of unit.
 MEAN_MIN_DIFF = 1.1
+# Usual unit length in milliseconds.
+UNIT = 300

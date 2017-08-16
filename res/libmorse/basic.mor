@@ -2,7 +2,7 @@
 # -- --- .-. ... . / -.-. --- -.. .
 # unit = 300ms
 
-0 1000    # Beginning with silence.
+0 2100    # Beginning with silence.
 
 # MORSE
 
@@ -71,4 +71,4 @@
 # E
 1 300
 
-0 1000    # Ending with silence.
+0 2100    # Ending with silence.
