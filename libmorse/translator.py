@@ -4,11 +4,12 @@
 import Queue
 import abc
 import collections
+import copy
 import itertools
 import threading
 
 import six
-from scipy.cluster.vq import kmeans2
+from scipy.cluster.vq import kmeans, vq
 
 from libmorse import exceptions, morse, settings
 from libmorse.utils import Logger
@@ -51,40 +52,45 @@ class BaseTranslator(Logger):
 
         self._input_queue = Queue.Queue()
         self._output_queue = Queue.Queue()
+        self._queue_processor = None    # parallel thread handling processing
         self._closed = threading.Event()
 
+        self.config = copy.deepcopy(self.CONFIG)
         self.unit = settings.UNIT    # average used unit length
 
         self._start()    # start the item processor
 
     def _free(self):
-        pass
+        del self._input_queue
+        del self._output_queue
 
     @abc.abstractmethod
     def _process(self, item):
-        pass
+        """Returns a list of processed items as results."""
 
     def _run(self):
         while True:
             item = self._input_queue.get()
             if item == self.CLOSE_SENTINEL:
-                self._closed.set()
-                self._free()
                 self._input_queue.task_done()
+                self._free()
                 break
-            results = self._process(item)
-            if not isinstance(results, (tuple, list, set)):
-                results = [results]
-            for result in results:
-                if result != self.CLOSE_SENTINEL:
-                    # Add rightful results only.
-                    self._output_queue.put(result)
+
+            if not self.closed:
+                results = self._process(item)
+                if not isinstance(results, (tuple, list, set)):
+                    results = [results]
+                for result in results:
+                    if result != self.CLOSE_SENTINEL:
+                        # Add rightful results only.
+                        self._output_queue.put(result)
+
             self._input_queue.task_done()
 
     def _start(self):
-        thread = threading.Thread(target=self._run)
-        thread.setDaemon(True)
-        thread.start()
+        self._queue_processor = threading.Thread(target=self._run)
+        self._queue_processor.setDaemon(True)
+        self._queue_processor.start()
 
     def put(self, item, **kwargs):
         """Add a new item to the processing queue.
@@ -123,8 +129,10 @@ class BaseTranslator(Logger):
         return self._closed.is_set()
 
     def close(self):
-        """Close the translator and free resources."""
+        """Close and wait the translator to finish and free resources."""
         self.put(self.CLOSE_SENTINEL)
+        self._closed.set()
+        self._queue_processor.join()
 
     def wait(self):
         """Block until all the items in the queue are processed."""
@@ -141,8 +149,6 @@ class MorseTranslator(BaseTranslator):
     """Morse to alphabet translator."""
 
     def __init__(self, *args, **kwargs):
-        super(MorseTranslator, self).__init__(*args, **kwargs)
-
         # Actively analysed signals.
         self._signals = collections.deque(maxlen=settings.SIGNAL_RANGE[1])
         # Actively analysed silences; the same range may work.
@@ -155,12 +161,15 @@ class MorseTranslator(BaseTranslator):
         self._morse_silences = []
         self._morse_code = []
 
+        super(MorseTranslator, self).__init__(*args, **kwargs)
+
     def _free(self):
         self._signals.clear()
         self._silences.clear()
         self._morse_signals = []
         self._morse_silences = []
         self._morse_code = []
+
         super(MorseTranslator, self)._free()
 
     def _get_signal_classes(self, means, ratios):
@@ -182,12 +191,20 @@ class MorseTranslator(BaseTranslator):
 
         return classes
 
+    @staticmethod
+    def _stable_kmeans(container, clusters):
+        # Get the stable means.
+        means = kmeans(container, clusters)[0]
+        # Obtain and return the labels along with the means.
+        labels = vq(container, means)[0]
+        return means, labels
+
     def _analyse(self, container, config):
         """Analyse and translate if possible the current range of
         signals or silences.
         """
         # Get a first classification of the signals.
-        means, distribution = kmeans2(container, config["means"])
+        means, distribution = self._stable_kmeans(container, config["means"])
         unit = min(means)
         limit = config["mean_min_diff"] * unit
         for combi in itertools.combinations(means, 2):
@@ -207,9 +224,6 @@ class MorseTranslator(BaseTranslator):
 
     def _parse_morse_code(self):
         """Transform obtained morse code into alphabet."""
-        code = self._morse_code[:]
-        self._morse_code = []
-        return code
 
     def _process(self, item):
         if not self._begin:
@@ -222,7 +236,7 @@ class MorseTranslator(BaseTranslator):
         else:
             container = self._silences
             selected = "silences"
-        config = self.CONFIG[selected]
+        config = self.config[selected]
         # Take the last saved item and join with the new one if it's from the
         # same kind, otherwise just add the new one.
         if self._last and item[0] == self._last[0]:
@@ -243,8 +257,8 @@ class MorseTranslator(BaseTranslator):
         # Re-process the new state of the active queues and try to give a
         # result based on the current set of signals and silences.
         pairs = [
-            (self._signals, self.CONFIG["signals"], self._morse_signals),
-            (self._silences, self.CONFIG["silences"], self._morse_silences)
+            (self._signals, self.config["signals"], self._morse_signals),
+            (self._silences, self.config["silences"], self._morse_silences)
         ]
         for container, config, collection in pairs:
             if len(container) >= config["min_length"]:
