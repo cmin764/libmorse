@@ -1,4 +1,4 @@
-"""Basic translator from morse code to alphabet and reverse."""
+"""Basic converter from morse code to alphabet and reverse."""
 
 
 import abc
@@ -55,8 +55,8 @@ class BaseConverter(utils.Logger):
 
     def _load_morse_code(self):
         # Obtain morse codes from resource.
-        self._morse_dict = utils.get_resource("morse.json",
-                                        resource_type=utils.RES_JSON)
+        self._morse_dict = utils.get_resource(
+            "morse.json", resource_type=utils.RES_JSON)
         for char, code in self._morse_dict.items():
             self._fill_tree(self._morse_tree, char, list(code))
 

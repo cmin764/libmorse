@@ -213,6 +213,8 @@ class MorseTranslator(BaseTranslator):
         self._silences.clear()
         self._morse_signals = []
         self._morse_silences = []
+        del self._morse_pick
+        self._morse_selected = None
         self._morse_code = []
         self._converter.free()
 
@@ -302,7 +304,8 @@ class MorseTranslator(BaseTranslator):
             if len(container) >= container.maxlen:
                 if config["offset"] <= 0:
                     raise exceptions.TranslatorMorseError(
-                        "insufficient {}".format(selected))
+                        "missing {} variation".format(selected)
+                    )
                 config["offset"] -= 1
             # Add a new signal (duration only).
             container.append(item[1])
