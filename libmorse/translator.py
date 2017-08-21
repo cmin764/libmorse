@@ -11,7 +11,7 @@ import threading
 import six
 from scipy.cluster.vq import kmeans, vq
 
-from libmorse import exceptions, morse, settings
+from libmorse import converter, exceptions, settings
 from libmorse.utils import Logger
 
 
@@ -28,8 +28,8 @@ class BaseTranslator(Logger):
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "min_length": settings.SIGNAL_RANGE[0],
             "ratios": {
-                morse.DOT: 1.0,
-                morse.DASH: 3.0,
+                converter.DOT: 1.0,
+                converter.DASH: 3.0,
             },
             "offset": 0,
         },
@@ -39,9 +39,9 @@ class BaseTranslator(Logger):
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "min_length": settings.SIGNAL_RANGE[0],
             "ratios": {
-                morse.INTRA_GAP: 1.0,
-                morse.SHORT_GAP: 3.0,
-                morse.MEDIUM_GAP: 7.0,
+                converter.INTRA_GAP: 1.0,
+                converter.SHORT_GAP: 3.0,
+                converter.MEDIUM_GAP: 7.0,
             },
             "offset": 0,
         },
@@ -143,6 +143,45 @@ class AlphabetTranslator(BaseTranslator):
 
     """Alphabet to morse translator."""
 
+    def __init__(self, *args, **kwargs):
+        self._converter = converter.AlphabetConverter(*args, **kwargs)
+
+        super(AlphabetTranslator, self).__init__(*args, **kwargs)
+
+    def _process(self, item):
+        # Convert every new character into a morse letter.
+        letters = self._converter.add([item])
+        # Translate the obtained morse code into timed signals.
+        signals = []
+        # Use predefined ratios when creating timings.
+        ratios = copy.deepcopy(self.CONFIG["signals"]["ratios"])
+        ratios.update(self.CONFIG["silences"]["ratios"])
+
+        for letter in letters:
+            if letter in (converter.SHORT_GAP, converter.MEDIUM_GAP):
+                # Create the silence for the gap between characters or words.
+                silence = (False, ratios[letter] * self.unit)
+                signals.append(silence)
+                continue
+
+            # We have a letter; properly add all the successive signals and
+            # silences.
+            silence = (False, converter.INTRA_GAP * self.unit)
+            extend = [((True, ratios[symbol] * self.unit), silence)
+                      for symbol in letter]
+            extend = [signal for pair in extend for signal in pair]
+            # There is no intra-gap at the end of the letter; short gap
+            # follows explicitly.
+            extend.pop(-1)
+            signals.extend(extend)
+
+        return signals
+
+    def _free(self):
+        self._converter.free()
+
+        super(AlphabetTranslator, self)._free()
+
 
 class MorseTranslator(BaseTranslator):
 
@@ -159,7 +198,13 @@ class MorseTranslator(BaseTranslator):
         # Actual morse code, divided and combined.
         self._morse_signals = []
         self._morse_silences = []
+        self._morse_pick = itertools.cycle([
+            self._morse_signals, self._morse_silences
+        ])
+        self._morse_selected = True
         self._morse_code = []
+        # Code converter.
+        self._converter = converter.MorseConverter(*args, **kwargs)
 
         super(MorseTranslator, self).__init__(*args, **kwargs)
 
@@ -169,6 +214,7 @@ class MorseTranslator(BaseTranslator):
         self._morse_signals = []
         self._morse_silences = []
         self._morse_code = []
+        self._converter.free()
 
         super(MorseTranslator, self)._free()
 
@@ -224,11 +270,19 @@ class MorseTranslator(BaseTranslator):
 
     def _parse_morse_code(self):
         """Transform obtained morse code into alphabet."""
+        text = self._converter.add(self._morse_code)
+        self._morse_code = []
+        if text is None:
+            return None
+        return list(text)
 
     def _process(self, item):
         if not self._begin:
             # Used for knowing how to bounce between the signals.
             self._begin = item
+            if not self._begin[0]:
+                # Starting with a silence first.
+                next(self._morse_pick)
         # Decide active container depending on the signal type.
         if item[0]:
             container = self._signals
@@ -266,23 +320,16 @@ class MorseTranslator(BaseTranslator):
                 collection.extend(signals or [])
 
         # Combine obtained morse signals and silences.
-        sig, sil = self._morse_signals, self._morse_silences
-        sets = [sig, sil]
-        if all(sets):
-            # We have items from both.
-            if not self._begin[0]:
-                # Starting with a silence first.
-                sets = [sil, sig]
-            # Just merge them sequentially.
-            merged = [item for pair in zip(*sets) for item in pair]
-            self._morse_code.extend(merged)
-            # Then discard the mixed items.
-            idx = min([len(collection) for collection in sets])
-            del sig[:idx]
-            del sil[:idx]
+        news = False
+        while True:
+            self._morse_selected = next(self._morse_pick)
+            if not self._morse_selected:
+                next(self._morse_pick)
+                break
+            item = self._morse_selected.pop(0)
+            self._morse_code.append(item)
+            news = True
 
-            # Parse actual morse code and send the result
-            # for the output queue.
-            return self._parse_morse_code()
-
-        return self.CLOSE_SENTINEL    # nothing obtained yet
+        # Parse the actual morse code and send the result for the output
+        # queue if applicable.
+        return self._parse_morse_code() if news else self.CLOSE_SENTINEL
