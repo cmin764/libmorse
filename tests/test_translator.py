@@ -15,7 +15,11 @@ class TestMorseTranslator(unittest.TestCase):
         "basic.mor": [
             "-- --- .-. ... . / -.-. --- -.. .",
             "MORSE CODE"
-        ]
+        ],
+        "basic_noise.mor": [
+            "-- --- .-. ... . / -.-. --- -.. .",
+            "MORSE CODE"
+        ],
     }
 
     def setUp(self):
@@ -70,3 +74,9 @@ class TestMorseTranslator(unittest.TestCase):
 
     def test_basic_alphabet(self):
         self._test_alphamorse("basic.mor", test_alphabet=True)
+
+    def test_basic_noise_morse(self):
+        self._test_alphamorse("basic_noise.mor", test_alphabet=False)
+
+    def test_basic_noise_alphabet(self):
+        self._test_alphamorse("basic_noise.mor", test_alphabet=True)
