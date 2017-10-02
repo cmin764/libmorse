@@ -1,0 +1,4 @@
+- add stability tests regarding many runs
+- add long silence test
+- same signal fractions test
+- wrong signals test
