@@ -145,6 +145,9 @@ class AlphabetTranslator(BaseTranslator):
 
     def __init__(self, *args, **kwargs):
         self._converter = converter.AlphabetConverter(*args, **kwargs)
+        # Use predefined ratios when creating timings.
+        self._ratios = copy.deepcopy(self.CONFIG["signals"]["ratios"])
+        self._ratios.update(self.CONFIG["silences"]["ratios"])
 
         super(AlphabetTranslator, self).__init__(*args, **kwargs)
 
@@ -153,21 +156,18 @@ class AlphabetTranslator(BaseTranslator):
         letters = self._converter.add([item])
         # Translate the obtained morse code into timed signals.
         signals = []
-        # Use predefined ratios when creating timings.
-        ratios = copy.deepcopy(self.CONFIG["signals"]["ratios"])
-        ratios.update(self.CONFIG["silences"]["ratios"])
 
         for letter in letters:
             if letter in (converter.SHORT_GAP, converter.MEDIUM_GAP):
                 # Create the silence for the gap between characters or words.
-                silence = (False, ratios[letter] * self.unit)
+                silence = (False, self._ratios[letter] * self.unit)
                 signals.append(silence)
                 continue
 
             # We have a letter; properly add all the successive signals and
             # silences.
             silence = (False, converter.INTRA_GAP * self.unit)
-            extend = [((True, ratios[symbol] * self.unit), silence)
+            extend = [((True, self._ratios[symbol] * self.unit), silence)
                       for symbol in letter]
             extend = [signal for pair in extend for signal in pair]
             # There is no intra-gap at the end of the letter; short gap
