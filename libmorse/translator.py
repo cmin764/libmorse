@@ -201,7 +201,7 @@ class MorseTranslator(BaseTranslator):
         self._morse_pick = itertools.cycle([
             self._morse_signals, self._morse_silences
         ])
-        self._morse_selected = True
+        self._morse_selected = None
         self._morse_code = []
         # Code converter.
         self._converter = converter.MorseConverter(*args, **kwargs)
