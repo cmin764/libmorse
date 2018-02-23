@@ -12,16 +12,21 @@ RES_TEXT = "text"
 RES_JSON = "json"
 
 
-def get_logger(name, debug=settings.DEBUG, use_logging=settings.LOGGING):
+def get_logger(name, use_logging=settings.LOGGING, debug=settings.DEBUG):
     """Obtain a logger object given a name."""
-    logging.basicConfig(
-        filename=settings.LOGFILE,
-        format="%(levelname)s - %(name)s - %(asctime)s - %(message)s"
-    )
     log = logging.getLogger(name)
-    level = logging.DEBUG if debug else logging.INFO
-    level = level if use_logging else logging.CRITICAL
-    log.setLevel(level)
+    if settings.LOGFILE:
+        handler = logging.FileHandler(settings.LOGFILE)
+    else:
+        handler = logging.StreamHandler()
+    template = "%(levelname)s - %(name)s - %(asctime)s - %(message)s"
+    formatter = logging.Formatter(template)
+    handler.setFormatter(formatter)
+    if not log.handlers:
+        log.addHandler(handler)
+        level = logging.DEBUG if debug else logging.INFO
+        level = level if use_logging else logging.CRITICAL
+        log.setLevel(level)
     return log
 
 

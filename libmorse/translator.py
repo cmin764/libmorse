@@ -9,7 +9,7 @@ import itertools
 import threading
 
 import six
-from scipy.cluster.vq import kmeans, vq
+from scipy.cluster.vq import kmeans, vq, whiten
 
 from libmorse import converter, exceptions, settings
 from libmorse.utils import Logger
@@ -224,13 +224,14 @@ class MorseTranslator(BaseTranslator):
         """Classify the means into signal types."""
         classes = []
         self.unit = min(means)    # good unit for reference
+        ratios_items = ratios.items()
 
         for mean in means:
             ratio = mean / self.unit
             # Find closest defined ratio.
             best_class = None
-            min_delta = abs(ratios.items()[0][1] - ratio) + 1
-            for entity, entity_ratio in ratios.items():
+            min_delta = abs(ratios_items[0][1] - ratio) + 1
+            for entity, entity_ratio in ratios_items:
                 delta = abs(ratio - entity_ratio)
                 if delta < min_delta:
                     min_delta = delta
@@ -241,11 +242,16 @@ class MorseTranslator(BaseTranslator):
 
     @staticmethod
     def _stable_kmeans(container, clusters):
+        # Normalize the elements to be clustered.
+        factor = container[0]
+        container = whiten(container)
+        factor /= container[0]
         # Get the stable means.
         means = kmeans(container, clusters)[0]
         # Obtain and return the labels along with the means.
         labels = vq(container, means)[0]
-        return means, labels
+        # Return the original means along the labels distribution.
+        return means * factor, labels
 
     def _analyse(self, container, config):
         """Analyse and translate if possible the current range of

@@ -24,6 +24,6 @@ class TranslatorMorseError(ProcessMorseError):
 
 class ConverterMorseError(ProcessMorseError):
 
-    """Exception raised by the translators."""
+    """Exception raised by the converters."""
 
-    CODE = 211
+    CODE = 112

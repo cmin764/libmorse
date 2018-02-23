@@ -1,8 +1,11 @@
+import random
 import unittest
 
 import mock
+import numpy as np
 
 import libmorse
+from libmorse import settings
 
 
 DEBUG = True
@@ -80,3 +83,34 @@ class TestMorseTranslator(unittest.TestCase):
 
     def test_basic_noise_alphabet(self):
         self._test_alphamorse("basic_noise.mor", test_alphabet=True)
+
+    def _test_stable_kmeans(self, clusters_dim, tests_dim=100):
+        # Generate random signals that should be classified in `clusters_dim`
+        # groups.
+        unit = settings.UNIT
+        ideal_means = [unit]
+        for _ in range(clusters_dim - 1):
+            ideal_means.append(ideal_means[-1] * 2 + unit)
+        # Make a few tests with different data, but the very same labeling.
+        for crt in range(tests_dim):
+            # How many signals of each label.
+            sig_dim = np.random.randint(*settings.SIGNAL_RANGE) / clusters_dim
+            # The actual signals.
+            signals = []
+            for mean in ideal_means:
+                dist = np.random.randn(sig_dim) * 10 + mean
+                signals.extend(dist.tolist())
+            # Run clustering.
+            random.shuffle(signals)
+            _, labels = libmorse.MorseTranslator._stable_kmeans(
+                signals, clusters_dim)
+            labels_list = labels.tolist()
+            for idx in range(clusters_dim):
+                self.assertEqual(sig_dim, labels_list.count(idx),
+                                 "iteration #{}".format(crt + 1))
+
+    def test_stable_kmeans_2_clusters(self):
+        self._test_stable_kmeans(2)
+
+    def test_stable_kmeans_3_clusters(self):
+        self._test_stable_kmeans(3)
