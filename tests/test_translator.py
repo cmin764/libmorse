@@ -36,8 +36,8 @@ class TestMorseTranslator(unittest.TestCase):
             self.translator.put(signal)
         self.translator.wait()
 
-    def _get_translation(self, mor_file, get_alphabet=True):
-        mor_code = libmorse.get_mor_code(mor_file)
+    def _get_translation(self, mor_file, get_alphabet=True, morse_code=None):
+        mor_code = morse_code or libmorse.get_mor_code(mor_file)
         if get_alphabet:
             self._send_mor_code(mor_code)
         else:
@@ -60,17 +60,23 @@ class TestMorseTranslator(unittest.TestCase):
 
         return results
 
-    def _test_alphamorse(self, name, test_alphabet=True):
+    def _test_alphamorse(self, name, test_alphabet=True, morse_code=None,
+                         message=None, expected=None):
         translation = self._get_translation(
             name,
-            get_alphabet=test_alphabet
+            get_alphabet=test_alphabet,
+            morse_code=morse_code
         )
         result = "".join(translation).strip()
         if not test_alphabet:
             result = result.strip(" /")
 
-        expected = self.MORSE[name][int(test_alphabet)]
-        self.assertEqual(expected, result)
+        if expected is None:
+            expected = self.MORSE[name][int(test_alphabet)]
+        args = [expected, result]
+        if message:
+            args.append(message)
+        self.assertEqual(*args)
 
     def test_basic_morse(self):
         self._test_alphamorse("basic.mor", test_alphabet=False)
@@ -83,6 +89,34 @@ class TestMorseTranslator(unittest.TestCase):
 
     def test_basic_noise_alphabet(self):
         self._test_alphamorse("basic_noise.mor", test_alphabet=True)
+
+    def _test_no_silence_morse(self, message, remove_idx, expected=None):
+        """Strip the beginning and ending silence."""
+        mor_code = libmorse.get_mor_code("basic.mor")
+        for idx in remove_idx:
+            mor_code.pop(idx)
+        self._test_alphamorse("basic.mor", morse_code=mor_code,
+                              message=message, expected=expected)
+
+    def test_no_silence_morse_begin(self):
+        self._test_no_silence_morse(
+            "no silence at beginning",
+            [0]
+        )
+
+    def test_no_silence_morse_end(self):
+        self._test_no_silence_morse(
+            "no silence at the end",
+            [-1],
+            expected="MORSE COD"
+        )
+
+    def test_no_silence_morse_all(self):
+        self._test_no_silence_morse(
+            "no silence at all",
+            [0, -1],
+            expected="MORSE COD"
+        )
 
     def _test_stable_kmeans(self, clusters_dim, tests_dim=100):
         # Generate random signals that should be classified in `clusters_dim`
