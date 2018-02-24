@@ -247,9 +247,13 @@ class MorseTranslator(BaseTranslator):
         container = whiten(container)
         factor /= container[0]
         # Get the stable means.
-        means = kmeans(container, clusters)[0]
-        # Obtain and return the labels along with the means.
-        labels = vq(container, means)[0]
+        while True:
+            means = kmeans(container, clusters)[0]
+            # Obtain and return the labels along with the means.
+            labels = vq(container, means)[0]
+            # Check for empty clusters.
+            if set(labels) == set(range(clusters)):
+                break
         # Return the original means along the labels distribution.
         return means * factor, labels
 
