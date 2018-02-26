@@ -1,3 +1,8 @@
+- create coroutine for using the translator (correcting errors, removing noise,
+    creating sessions depending on the signals nature, tackling long pauses,
+    detect activity)
+- test with noise at the beginning
+- test with long pauses between words/letters
 - test non existent characters (signals -> morse -- problem --> alphabet)
 - add long silence test
 - same signal fractions test
