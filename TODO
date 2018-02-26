@@ -1,3 +1,4 @@
+- test non existent characters (signals -> morse -- problem --> alphabet)
 - add long silence test
 - same signal fractions test
 - wrong signals test

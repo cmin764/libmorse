@@ -25,7 +25,8 @@ class BaseConverter(utils.Logger):
     """Base class for morse-alphabet conversion."""
 
     def __init__(self, *args, **kwargs):
-        super(BaseConverter, self).__init__(*args, **kwargs)
+        self._silence_errors = kwargs.pop("silence_errors", True)
+        super(BaseConverter, self).__init__(__name__, *args, **kwargs)
 
         self._morse_dict = None
         self._morse_tree = anytree.Node("Morse")
@@ -97,14 +98,16 @@ class AlphabetConverter(BaseConverter):
             else:
                 letter = self._morse_dict.get(char)
                 if not letter:
-                    raise exceptions.ConverterMorseError(
-                        "latin character not found"
-                    )
+                    if not self._silence_errors:
+                        raise exceptions.ConverterMorseError(
+                            "latin character not found"
+                        )
                 if self._last_char not in (None, " "):
                     gap = SHORT_GAP
                 self._last_char = char
 
-            letters.append(letter)
+            if letter:
+                letters.append(letter)
             if gap:
                 letters.append(gap)
 
@@ -116,24 +119,28 @@ class MorseConverter(BaseConverter):
 
     """Simple morse code to alphabet converter."""
 
-    @classmethod
-    def _get_tree_char(cls, node, code):
-        not_found = exceptions.ConverterMorseError(
-            "morse letter not found"
-        )
+    def _get_tree_char(self, node, code):
+        def raise_not_found():
+            if not self._silence_errors:
+                raise exceptions.ConverterMorseError(
+                    "morse letter not found"
+                )
+
         if not code:
             if hasattr(node, "char") and node.char:
                 return node.char
-            raise not_found
+            raise_not_found()
+            return None    # nothing found and no error raised
 
         # Take the first one from the remaining symbols.
-        next = code.pop(0)
+        next_code = code.pop(0)
         # Search for its existence.
-        target = [child for child in node.children if child.name == next]
+        target = [child for child in node.children if child.name == next_code]
         if target:
-            return cls._get_tree_char(target[0], code)
+            return self._get_tree_char(target[0], code)
         else:
-            raise not_found
+            raise_not_found()
+            return None    # nothing found and no error raised
 
     def _get_char(self, letter):
         """Return the corresponding char given morse `letter`."""

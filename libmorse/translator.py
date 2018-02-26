@@ -48,7 +48,7 @@ class BaseTranslator(Logger):
     }
 
     def __init__(self, *args, **kwargs):
-        super(BaseTranslator, self).__init__(*args, **kwargs)
+        super(BaseTranslator, self).__init__(__name__, *args, **kwargs)
 
         self._input_queue = Queue.Queue()
         self._output_queue = Queue.Queue()
@@ -240,8 +240,7 @@ class MorseTranslator(BaseTranslator):
 
         return classes
 
-    @staticmethod
-    def _stable_kmeans(container, clusters):
+    def _stable_kmeans(self, container, clusters):
         # Normalize the elements to be clustered.
         factor = container[0]
         container = whiten(container)
@@ -252,8 +251,12 @@ class MorseTranslator(BaseTranslator):
             # Obtain and return the labels along with the means.
             labels = vq(container, means)[0]
             # Check for empty clusters.
-            if set(labels) == set(range(clusters)):
+            labels_set = set(labels)
+            clusters_set = set(range(clusters))
+            if labels_set == clusters_set:
                 break
+            self.log.warning("Empty clusters (%d/%d).",
+                             *map(len, [labels_set, clusters_set]))
         # Return the original means along the labels distribution.
         return means * factor, labels
 
