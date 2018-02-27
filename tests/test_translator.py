@@ -1,4 +1,5 @@
 import random
+import time
 import unittest
 
 import mock
@@ -12,7 +13,40 @@ DEBUG = True
 log = libmorse.get_logger(__name__, debug=DEBUG)
 
 
-class TestMorseTranslator(unittest.TestCase):
+class TestMorseMixin(object):
+
+    def _test_mixed_signals(self, to_adapt=True, safe=True):
+        # Get two common morse codes.
+        morse_code = []
+        code, noise_code = map(
+            libmorse.get_mor_code, ["basic.mor", "basic_noise.mor"])
+        # Make the test coherent.
+
+        def adapt(a_code):
+            if not to_adapt:
+                return a_code
+            # Remove (by reducing to 1ms) the first silence in a code,
+            # if exists.
+            item = a_code[0]
+            if not item[0]:
+                item = (item[0], 1)
+                a_code[0] = item
+                if safe:
+                    a_code.pop(0)
+            return a_code
+
+        code, noise_code = map(adapt, [code, noise_code])
+
+        times = random.randint(4, 6)
+        for _ in range(times):
+            sel_code = random.choice([code, noise_code])
+            morse_code.extend(sel_code)
+        expected = " ".join(["MORSE CODE"] * times)
+
+        return morse_code, expected
+
+
+class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
 
     # Morse code resources.
     MORSE = {
@@ -121,32 +155,8 @@ class TestMorseTranslator(unittest.TestCase):
         )
 
     def test_mixed_signals(self):
-        # Get two common morse codes.
-        morse_codes = []
-        code, noise_code = map(
-            libmorse.get_mor_code, ["basic.mor", "basic_noise.mor"])
-        # Make the test coherent.
-
-        def adapt(a_code, safe=True):
-            # Remove (by reducing to 1ms) the first silence in a code,
-            # if exists.
-            item = a_code[0]
-            if not item[0]:
-                item = (item[0], 1)
-                a_code[0] = item
-                if safe:
-                    a_code.pop(0)
-            return a_code
-
-        code, noise_code = map(adapt, [code, noise_code])
-
-        times = random.randint(4, 6)
-        for _ in range(times):
-            sel_code = random.choice([code, noise_code])
-            morse_codes.extend(sel_code)
-        expected = " ".join(["MORSE CODE"] * times)
-
-        self._test_alphamorse(None, morse_code=morse_codes, expected=expected)
+        morse_code, expected = self._test_mixed_signals()
+        self._test_alphamorse(None, morse_code=morse_code, expected=expected)
 
     def _test_stable_kmeans(self, clusters_dim, tests_dim=100):
         # Generate random signals that should be classified in `clusters_dim`
@@ -178,3 +188,68 @@ class TestMorseTranslator(unittest.TestCase):
 
     def test_stable_kmeans_3_clusters(self):
         self._test_stable_kmeans(3)
+
+
+class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
+
+    # Sleep at each signal (as they would take while captured).
+    SLEEP_FACTOR = 100    # set to None in order to not use sleeping
+
+    def setUp(self):
+        self.translate = libmorse.translate_morse(debug=DEBUG)
+        self.translate.next()
+
+    def tearDown(self):
+        try:
+            self.translate.send(libmorse.CLOSE_SENTINEL)
+        except StopIteration:
+            pass
+
+    @classmethod
+    def _sleep_by(cls, item):
+        factor = cls.SLEEP_FACTOR
+        if not factor:
+            return
+
+        # Mimic the reality (diverged by a factor).
+        quantum = item[1] / 1000.0    # from ms to seconds
+        quantum /= factor
+        time.sleep(quantum)
+
+    def _test_morse(self, mor_code, expected):
+        results = []
+        for item in mor_code:
+            self._sleep_by(item)
+            trans, res = self.translate.send(item)
+            results.extend(res)
+
+        obtained = "".join(results).strip()
+        self.assertEqual(expected, obtained)
+
+    def test_basic(self):
+        mor_code = libmorse.get_mor_code("basic.mor")
+        # Add long time of silence at the end.
+        mor_code.append((False, libmorse.UNIT * 7.0))
+        self._test_morse(mor_code, "MORSE CODE")
+
+    @staticmethod
+    def _humanize(morse_code):
+        morse_code.append((False, libmorse.UNIT * 7.0))
+
+    def test_mixed_signals_adapt_safe(self):
+        morse_code, expected = self._test_mixed_signals()
+        self._humanize(morse_code)
+        self._test_morse(morse_code, expected)
+
+    def test_mixed_signals_no_adapt(self):
+        morse_code, expected = self._test_mixed_signals(
+            to_adapt=False, safe=False)
+        self._humanize(morse_code)
+        self._test_morse(morse_code, expected)
+
+    def test_mixed_signals_adapt_no_safe(self):
+        # Here we have very small noise.
+        morse_code, expected = self._test_mixed_signals(
+            to_adapt=True, safe=False)
+        self._humanize(morse_code)
+        self._test_morse(morse_code, expected)

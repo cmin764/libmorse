@@ -15,21 +15,29 @@ from libmorse import converter, exceptions, settings
 from libmorse.utils import Logger
 
 
+class STATE:
+    LONG_PAUSE = "<long pause>"
+
+
 @six.add_metaclass(abc.ABCMeta)
 class BaseTranslator(Logger):
 
     """Base class for any kind of translator"""
 
     CLOSE_SENTINEL = None
+    MAXLEN = settings.SIGNAL_RANGE[1]
+
     CONFIG = {
         "signals": {
             "type": "signals",
             "means": 2,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
+            "mean_max_diff": settings.MEAN_MAX_DIFF,
             "min_length": settings.SIGNAL_RANGE[0],
+            # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.DOT: 1.0,
-                converter.DASH: 3.0,
+                converter.DOT: [1.0, 1],
+                converter.DASH: [3.0, 1],
             },
             "offset": 0,
         },
@@ -37,11 +45,13 @@ class BaseTranslator(Logger):
             "type": "silences",
             "means": 3,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
+            "mean_max_diff": settings.MEAN_MAX_DIFF,
             "min_length": settings.SIGNAL_RANGE[0],
+            # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.INTRA_GAP: 1.0,
-                converter.SHORT_GAP: 3.0,
-                converter.MEDIUM_GAP: 7.0,
+                converter.INTRA_GAP: [1.0, 1],
+                converter.SHORT_GAP: [3.0, 1],
+                converter.MEDIUM_GAP: [7.0, 1],
             },
             "offset": 0,
         },
@@ -56,13 +66,43 @@ class BaseTranslator(Logger):
         self._closed = threading.Event()
 
         self.config = copy.deepcopy(self.CONFIG)
+        self._unit = None    # should be initialized as deque (below)
         self.unit = settings.UNIT    # average used unit length
 
         self._start()    # start the item processor
 
+    @property
+    def unit(self):
+        """Returns the length in ms of the most basic morse unit."""
+        if not self._unit:
+            return None
+        return sum(self._unit) / len(self._unit)
+
+    @unit.setter
+    def unit(self, unit):
+        del self.unit
+        self._unit = collections.deque(maxlen=self.MAXLEN)
+        if unit:
+            self._unit.append(unit)
+
+    @unit.deleter
+    def unit(self):
+        if self._unit:
+            self._unit.clear()
+            del self._unit
+
+    @staticmethod
+    def _calc_ratios(ratios):
+        normed_ratios = {}
+        for symbol, ratio_data in ratios.items():
+            ratio = ratio_data[0] / ratio_data[1]
+            normed_ratios[symbol] = ratio
+        return normed_ratios
+
     def _free(self):
         del self._input_queue
         del self._output_queue
+        del self.unit
 
     @abc.abstractmethod
     def _process(self, item):
@@ -146,10 +186,16 @@ class AlphabetTranslator(BaseTranslator):
     def __init__(self, *args, **kwargs):
         self._converter = converter.AlphabetConverter(*args, **kwargs)
         # Use predefined ratios when creating timings.
-        self._ratios = copy.deepcopy(self.CONFIG["signals"]["ratios"])
-        self._ratios.update(self.CONFIG["silences"]["ratios"])
+        self._ratios = {}
+        for ent in ("signals", "silences"):
+            self.update_ratios(self.CONFIG[ent]["ratios"])
 
         super(AlphabetTranslator, self).__init__(*args, **kwargs)
+
+    def update_ratios(self, ratios):
+        """Update the standard ratios with custom learned ones."""
+        normed_ratios = self._calc_ratios(ratios)
+        self._ratios.update(normed_ratios)
 
     def _process(self, item):
         # Convert every new character into a morse letter.
@@ -189,9 +235,9 @@ class MorseTranslator(BaseTranslator):
 
     def __init__(self, *args, **kwargs):
         # Actively analysed signals.
-        self._signals = collections.deque(maxlen=settings.SIGNAL_RANGE[1])
+        self._signals = collections.deque(maxlen=self.MAXLEN)
         # Actively analysed silences; the same range may work.
-        self._silences = collections.deque(maxlen=settings.SIGNAL_RANGE[1])
+        self._silences = collections.deque(maxlen=self.MAXLEN)
         # First and last provided items.
         self._begin = None
         self._last = None
@@ -205,8 +251,13 @@ class MorseTranslator(BaseTranslator):
         self._morse_code = []
         # Code converter.
         self._converter = converter.MorseConverter(*args, **kwargs)
+        # Last set state of the last analysed signals/silences.
+        self.last_state = None
 
         super(MorseTranslator, self).__init__(*args, **kwargs)
+
+        # Custom learned units allowed only.
+        self.unit = None
 
     def _free(self):
         self._signals.clear()
@@ -223,11 +274,11 @@ class MorseTranslator(BaseTranslator):
     def _get_signal_classes(self, means, ratios):
         """Classify the means into signal types."""
         classes = []
-        self.unit = min(means)    # good unit for reference
+        unit = min(means)    # good unit for reference
         ratios_items = ratios.items()
 
         for mean in means:
-            ratio = mean / self.unit
+            ratio = mean / unit
             # Find closest defined ratio.
             best_class = None
             min_delta = abs(ratios_items[0][1] - ratio) + 1
@@ -260,6 +311,17 @@ class MorseTranslator(BaseTranslator):
         # Return the original means along the labels distribution.
         return means * factor, labels
 
+    @staticmethod
+    def _update_ratios(conf_ratios, means):
+        symbols = sorted(conf_ratios, key=lambda arg: conf_ratios[arg][0])
+        unit = min(means)
+        new_ratios = [mean / unit for mean in sorted(means)]
+
+        for idx, symbol in enumerate(symbols):
+            symbol_ratio = conf_ratios[symbol]
+            symbol_ratio[0] += new_ratios[idx]
+            symbol_ratio[1] += 1
+
     def _analyse(self, container, config):
         """Analyse and translate if possible the current range of
         signals or silences.
@@ -267,20 +329,30 @@ class MorseTranslator(BaseTranslator):
         # Get a first classification of the signals.
         means, distribution = self._stable_kmeans(container, config["means"])
         unit = min(means)
-        limit = config["mean_min_diff"] * unit
+        lower_bound = config["mean_min_diff"] * unit
+        upper_bound = config["mean_max_diff"] * unit
         for combi in itertools.combinations(means, 2):
             delta = abs(combi[0] - combi[1])
-            if delta < limit:
-                # Insufficient signals.
+            if not lower_bound < delta < upper_bound:
+                # Insufficient or incoherent signals.
                 return None
+
+        # If we got here, it means that we have a good approved unit as the
+        # minimum centroid.
+        self._unit.append(unit)
+        # Also converge ratios as well.
+        conf_ratios = config["ratios"]
+        self._update_ratios(conf_ratios, means)
 
         # We've got a correct distribution. Take each remaining unprocessed
         # signal and normalize its classification.
-        signal_classes = self._get_signal_classes(means, config["ratios"])
+        normed_ratios = self._calc_ratios(conf_ratios)
+        signal_classes = self._get_signal_classes(means, normed_ratios)
         signals = []
         for signal_index in distribution[config["offset"]:]:
             signals.append(signal_classes[signal_index])
         config["offset"] = len(distribution)
+
         return signals
 
     def _parse_morse_code(self):
@@ -322,7 +394,8 @@ class MorseTranslator(BaseTranslator):
                 config["offset"] -= 1
             # Add a new signal (duration only).
             container.append(item[1])
-        self._last = item
+        self._last = item = self._correct_item(item)
+        container[-1] = item[1]
 
         # Re-process the new state of the active queues and try to give a
         # result based on the current set of signals and silences.
@@ -349,3 +422,78 @@ class MorseTranslator(BaseTranslator):
         # Parse the actual morse code and send the result for the output
         # queue if applicable.
         return self._parse_morse_code() if news else self.CLOSE_SENTINEL
+
+    def _correct_item(self, item):
+        """Return some states regarding the given signal/silence."""
+        stype, slen = item
+        unit = self.unit or settings.UNIT
+        state = None    # nothing special
+
+        if stype:
+            # Analysing a signal.
+            conf = self.config["signals"]
+        else:
+            # Analysing a silence.
+            conf = self.config["silences"]
+            # Check a long pause.
+            normed_ratios = self._calc_ratios(conf["ratios"])
+            max_ratio = max(normed_ratios.values())
+            max_silence = max_ratio * unit
+            delta = slen - max_silence
+            limit = conf["mean_min_diff"] * unit
+            if delta > limit:
+                state = STATE.LONG_PAUSE
+                slen = max_silence
+
+        if state:
+            self.last_state = state
+        return stype, slen
+
+
+def translate_morse(*args, **kwargs):
+    """Translator helper function that handles sessions and corrects
+    signals.
+
+    Acts like a coroutine, while handling on-the-fly any issue with the
+    supplied signals.
+    """
+    enable_renewal = kwargs.pop("enable_renewal", settings.ENABLE_RENEWAL)
+    get_trans = lambda: MorseTranslator(*args, **kwargs)
+    trans = get_trans()
+
+    def get_results():
+        renew = False
+        all_results = []
+
+        while True:
+            state = trans.last_state
+            if state:
+                trans.last_state = None
+            if state == STATE.LONG_PAUSE:
+                # Renew the translator (new learning session).
+                trans.wait()
+                renew = True
+
+            try:
+                result = trans.get(block=False)
+            except exceptions.TranslatorMorseError:
+                break
+            else:
+                all_results.append(result)
+
+        return renew, all_results
+
+    # This should run indefinitely (until explicit close).
+    while True:
+        new_trans, results = get_results()
+
+        # Get new item while returning last result.
+        item = yield trans, results
+
+        if enable_renewal and new_trans:
+            trans = get_trans()
+        if item == trans.CLOSE_SENTINEL:
+            trans.close()
+            break
+        else:
+            trans.put(item)

@@ -1,10 +1,7 @@
-- create coroutine for using the translator (correcting errors, removing noise,
-    creating sessions depending on the signals nature, tackling long pauses,
-    detect activity)
-- test with noise at the beginning
+- limit the maximum number of kmeas iterations if required
 - test with long pauses between words/letters
-- test non existent characters (signals -> morse -- problem --> alphabet)
 - add long silence test
+- test non existent characters (signals -> morse -- problem --> alphabet)
+- test incoherent signals
 - same signal fractions test
-- wrong signals test
 - add README docs, install, usage, test, debug info etc.
