@@ -33,5 +33,9 @@ MEAN_MIN_DIFF = 1.1
 MEAN_MAX_DIFF = 11.9
 # Usual unit length in milliseconds.
 UNIT = 300.0    # should be float
+# Less than this from unit is considered undesired noise.
+NOISE_RATIO = 0.1
 # Enable translator renewal after certain states/events.
 ENABLE_RENEWAL = False
+# How many k-means iterations to run at most (non-empty clusters).
+CLUSTER_ITER = 10

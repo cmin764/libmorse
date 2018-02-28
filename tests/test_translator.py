@@ -45,6 +45,10 @@ class TestMorseMixin(object):
 
         return morse_code, expected
 
+    @staticmethod
+    def _humanize(morse_code):
+        morse_code.append((False, libmorse.UNIT * 7.0))
+
 
 class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
 
@@ -71,8 +75,12 @@ class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
             self.translator.put(signal)
         self.translator.wait()
 
-    def _get_translation(self, mor_file, get_alphabet=True, morse_code=None):
+    def _get_translation(self, mor_file, get_alphabet=True, morse_code=None,
+                         humanize=False):
         mor_code = morse_code or libmorse.get_mor_code(mor_file)
+        if humanize:
+            self._humanize(mor_code)
+
         if get_alphabet:
             self._send_mor_code(mor_code)
         else:
@@ -97,11 +105,12 @@ class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
         return results
 
     def _test_alphamorse(self, name, test_alphabet=True, morse_code=None,
-                         message=None, expected=None):
+                         message=None, expected=None, humanize=False):
         translation = self._get_translation(
             name,
             get_alphabet=test_alphabet,
-            morse_code=morse_code
+            morse_code=morse_code,
+            humanize=humanize
         )
         result = "".join(translation).strip()
         if not test_alphabet:
@@ -118,26 +127,31 @@ class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
         self._test_alphamorse("basic.mor", test_alphabet=False)
 
     def test_basic_alphabet(self):
-        self._test_alphamorse("basic.mor", test_alphabet=True)
+        self._test_alphamorse("basic.mor", test_alphabet=True,
+                              humanize=True)
 
     def test_basic_noise_morse(self):
         self._test_alphamorse("basic_noise.mor", test_alphabet=False)
 
     def test_basic_noise_alphabet(self):
-        self._test_alphamorse("basic_noise.mor", test_alphabet=True)
+        self._test_alphamorse("basic_noise.mor", test_alphabet=True,
+                              humanize=True)
 
-    def _test_no_silence_morse(self, message, remove_idx, expected=None):
+    def _test_no_silence_morse(self, message, remove_idx, expected=None,
+                               humanize=False):
         """Strip the beginning and ending silence."""
         mor_code = libmorse.get_mor_code("basic.mor")
         for idx in remove_idx:
             mor_code.pop(idx)
         self._test_alphamorse("basic.mor", morse_code=mor_code,
-                              message=message, expected=expected)
+                              message=message, expected=expected,
+                              humanize=humanize)
 
     def test_no_silence_morse_begin(self):
         self._test_no_silence_morse(
             "no silence at beginning",
-            [0]
+            [0],
+            humanize=True
         )
 
     def test_no_silence_morse_end(self):
@@ -156,7 +170,8 @@ class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
 
     def test_mixed_signals(self):
         morse_code, expected = self._test_mixed_signals()
-        self._test_alphamorse(None, morse_code=morse_code, expected=expected)
+        self._test_alphamorse(None, morse_code=morse_code, expected=expected,
+                              humanize=True)
 
     def _test_stable_kmeans(self, clusters_dim, tests_dim=100):
         # Generate random signals that should be classified in `clusters_dim`
@@ -216,11 +231,19 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
         quantum /= factor
         time.sleep(quantum)
 
-    def _test_morse(self, mor_code, expected):
+    def _test_morse(self, mor_code, expected, humanize=True):
         results = []
+        trans = None
+        if humanize:
+            self._humanize(mor_code)
+
         for item in mor_code:
             self._sleep_by(item)
             trans, res = self.translate.send(item)
+            results.extend(res)
+        # Wait for the finish of the entire processing.
+        if trans:
+            _, res = libmorse.get_translator_results(trans, force_wait=True)
             results.extend(res)
 
         obtained = "".join(results).strip()
@@ -229,27 +252,37 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
     def test_basic(self):
         mor_code = libmorse.get_mor_code("basic.mor")
         # Add long time of silence at the end.
-        mor_code.append((False, libmorse.UNIT * 7.0))
         self._test_morse(mor_code, "MORSE CODE")
-
-    @staticmethod
-    def _humanize(morse_code):
-        morse_code.append((False, libmorse.UNIT * 7.0))
 
     def test_mixed_signals_adapt_safe(self):
         morse_code, expected = self._test_mixed_signals()
-        self._humanize(morse_code)
         self._test_morse(morse_code, expected)
 
     def test_mixed_signals_no_adapt(self):
         morse_code, expected = self._test_mixed_signals(
             to_adapt=False, safe=False)
-        self._humanize(morse_code)
         self._test_morse(morse_code, expected)
 
     def test_mixed_signals_adapt_no_safe(self):
         # Here we have very small noise.
         morse_code, expected = self._test_mixed_signals(
             to_adapt=True, safe=False)
-        self._humanize(morse_code)
         self._test_morse(morse_code, expected)
+
+    def test_noise(self):
+        mor_code = libmorse.get_mor_code("isolated_noise.mor")
+        # Add long time of silence at the end.
+        self._test_morse(mor_code, "MORSE CODE")
+
+    def test_long_pause(self):
+        mor_code = libmorse.get_mor_code("long_pause.mor")
+        self._test_morse(mor_code, "MORSE C O DE")
+
+    def test_long_silence(self):
+        mor_code = [(False, 900) for _ in range(10)]
+        self._test_morse(mor_code, "", humanize=False)
+
+    def test_invalid_char(self):
+        mor_code = libmorse.get_mor_code("invalid_char.mor")
+        # D is skipped because it is not found due to: ..-- (invalid).
+        self._test_morse(mor_code, "MORSE COE")

@@ -10,6 +10,7 @@ from .settings import PROJECT, UNIT
 from .translator import (
     AlphabetTranslator,
     MorseTranslator,
+    get_translator_results,
     translate_morse,
 )
 from .utils import (

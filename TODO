@@ -1,7 +1,3 @@
-- limit the maximum number of kmeas iterations if required
-- test with long pauses between words/letters
-- add long silence test
-- test non existent characters (signals -> morse -- problem --> alphabet)
 - test incoherent signals
 - same signal fractions test
 - add README docs, install, usage, test, debug info etc.
