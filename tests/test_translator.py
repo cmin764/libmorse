@@ -49,7 +49,7 @@ class TestMorseMixin(object):
 
     @staticmethod
     def _humanize(morse_code):
-        morse_code.append((False, libmorse.UNIT * 7.0))
+        libmorse.humanize_mor_code(morse_code)
 
 
 class TestMorseTranslator(unittest.TestCase, TestMorseMixin):

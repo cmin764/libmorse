@@ -54,7 +54,8 @@ def get_resource(name, resource_type=RES_TEXT):
 
 def get_mor_code(name):
     """Get MOR code given `data`."""
-    data = get_resource(name).strip()
+    data = (get_resource(name) if isinstance(name, str)
+            else name.read()).strip()
     if not data:
         return []
 
@@ -72,6 +73,19 @@ def get_mor_code(name):
         state, duration = bool(int(chunks[0])), float(chunks[1])
         mor_code.append((state, duration))
     return mor_code
+
+
+def humanize_mor_code(morse_code, unit=settings.UNIT, ratio=7.0,
+                      split=False):
+    """Add an expected silence at the end of the morse code."""
+    length = unit * ratio
+    if split:
+        length /= 2
+    ending = [(False, length)]
+    if split:
+        ending *= 2
+    morse_code.extend(ending)
+    return morse_code
 
 
 class Logger(object):

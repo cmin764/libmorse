@@ -1,6 +1,11 @@
 """Main package classes, functions and utilities."""
 
 
+from .converter import (
+    MEDIUM_GAP,
+    AlphabetConverter,
+    MorseConverter,
+)
 from .exceptions import (
     MorseError,
     ProcessMorseError,
@@ -17,6 +22,7 @@ from .utils import (
     get_logger,
     get_mor_code,
     get_return_code,
+    humanize_mor_code,
 )
 
 

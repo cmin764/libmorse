@@ -98,19 +98,19 @@ class AlphabetConverter(BaseConverter):
             else:
                 letter = self._morse_dict.get(char)
                 if not letter:
-                    msg = "latin character not found"
+                    msg = "latin character {!r} not found".format(char)
                     if self._silence_errors:
                         self._log_error(msg)
                     else:
                         raise exceptions.ConverterMorseError(msg)
                 if self._last_char not in (None, " "):
                     gap = SHORT_GAP
-                self._last_char = char
+            self._last_char = char
 
-            if letter:
-                letters.append(letter)
             if gap:
                 letters.append(gap)
+            if letter:
+                letters.append(letter)
 
         self._input = []
         return letters
@@ -120,9 +120,9 @@ class MorseConverter(BaseConverter):
 
     """Simple morse code to alphabet converter."""
 
-    def _get_tree_char(self, node, code):
+    def _get_tree_char(self, node, code, letter):
         def raise_not_found():
-            msg = "morse letter not found"
+            msg = "morse letter {!r} not found".format(letter)
             if self._silence_errors:
                 self._log_error(msg)
             else:
@@ -139,7 +139,7 @@ class MorseConverter(BaseConverter):
         # Search for its existence.
         target = [child for child in node.children if child.name == next_code]
         if target:
-            return self._get_tree_char(target[0], code)
+            return self._get_tree_char(target[0], code, letter)
         else:
             raise_not_found()
             return None    # nothing found and no error raised
@@ -148,7 +148,7 @@ class MorseConverter(BaseConverter):
         """Return the corresponding char given morse `letter`."""
         if not letter:
             return None
-        return self._get_tree_char(self._morse_tree, list(letter))
+        return self._get_tree_char(self._morse_tree, list(letter), letter)
 
     def _process_word(self, word, last=False):
         # Span the list of dots, dashes and short gaps into groups

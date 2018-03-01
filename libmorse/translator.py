@@ -70,6 +70,9 @@ class BaseTranslator(Logger):
         self._unit = None    # should be initialized as deque (below)
         self.unit = settings.UNIT    # average used unit length
 
+        # Last set state of the last analysed signals/silences.
+        self.last_state = None  # used to notify the outsides (changeable)
+
         self._start()    # start the item processor
 
     @property
@@ -217,7 +220,7 @@ class AlphabetTranslator(BaseTranslator):
 
             # We have a letter; properly add all the successive signals and
             # silences.
-            silence = (False, converter.INTRA_GAP * unit)
+            silence = (False, self._ratios[converter.INTRA_GAP] * unit)
             extend = [((True, self._ratios[symbol] * unit), silence)
                       for symbol in letter]
             extend = [signal for pair in extend for signal in pair]
@@ -256,8 +259,6 @@ class MorseTranslator(BaseTranslator):
         self._morse_code = []
         # Code converter.
         self._converter = converter.MorseConverter(*args, **kwargs)
-        # Last set state of the last analysed signals/silences.
-        self.last_state = None    # used to notify the outsides (changeable)
         # Items saturation.
         self._skip_type = None
 
@@ -537,6 +538,12 @@ class MorseTranslator(BaseTranslator):
         if state:
             self.last_state = state
         return stype, slen
+
+    @property
+    def medium_gap_ratio(self):
+        conf_ratios = self.config["silences"]["ratios"]
+        normed_ratios = self._calc_ratios(conf_ratios)
+        return max(normed_ratios.values())
 
 
 def get_translator_results(translator, force_wait=False):
