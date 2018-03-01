@@ -5,24 +5,28 @@ import json
 import logging
 import os
 
-from libmorse import exceptions
-from libmorse import settings
+from libmorse import exceptions, settings
 
 
 RES_TEXT = "text"
 RES_JSON = "json"
 
 
-def get_logger(name, debug=settings.DEBUG, use_logging=settings.LOGGING):
+def get_logger(name, use_logging=settings.LOGGING, debug=settings.DEBUG):
     """Obtain a logger object given a name."""
-    logging.basicConfig(
-        filename=settings.LOGFILE,
-        format="%(levelname)s - %(name)s - %(asctime)s - %(message)s"
-    )
     log = logging.getLogger(name)
-    level = logging.DEBUG if debug else logging.INFO
-    level = level if use_logging else logging.CRITICAL
-    log.setLevel(level)
+    if settings.LOGFILE:
+        handler = logging.FileHandler(settings.LOGFILE)
+    else:
+        handler = logging.StreamHandler()
+    template = "%(levelname)s - %(name)s - %(asctime)s - %(message)s"
+    formatter = logging.Formatter(template)
+    handler.setFormatter(formatter)
+    if not log.handlers:
+        log.addHandler(handler)
+        level = logging.DEBUG if debug else logging.INFO
+        level = level if use_logging else logging.CRITICAL
+        log.setLevel(level)
     return log
 
 
@@ -50,7 +54,8 @@ def get_resource(name, resource_type=RES_TEXT):
 
 def get_mor_code(name):
     """Get MOR code given `data`."""
-    data = get_resource(name).strip()
+    data = (get_resource(name) if isinstance(name, str)
+            else name.read()).strip()
     if not data:
         return []
 
@@ -68,3 +73,34 @@ def get_mor_code(name):
         state, duration = bool(int(chunks[0])), float(chunks[1])
         mor_code.append((state, duration))
     return mor_code
+
+
+def humanize_mor_code(morse_code, unit=settings.UNIT, ratio=7.0,
+                      split=False):
+    """Add an expected silence at the end of the morse code."""
+    length = unit * ratio
+    if split:
+        length /= 2
+    ending = [(False, length)]
+    if split:
+        ending *= 2
+    morse_code.extend(ending)
+    return morse_code
+
+
+class Logger(object):
+
+    """Simple base class offering logging support."""
+
+    def __init__(self, name, use_logging=settings.LOGGING,
+                 debug=settings.DEBUG):
+        """Log information using the `log` method.
+
+        :param bool use_logging: enable logging or not
+        :param bool debug: enable debugging messages
+        """
+        super(Logger, self).__init__()
+        self.log = get_logger(name, use_logging=use_logging, debug=debug)
+
+    def _log_error(self, message):
+        self.log.error(message.strip(".").capitalize() + ".")
