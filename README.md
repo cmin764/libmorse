@@ -26,7 +26,7 @@ Make sure that you're using the correct version of pip, by running
 #### Clone repository and install package:
 
 ```bash
-$ https://github.com/cmin764/libmorse.git
+$ git clone https://github.com/cmin764/libmorse.git
 $ cd libmorse
 $ sudo -H ./setup.sh    # setup.bat on Windows
 ```
@@ -56,19 +56,143 @@ project directory.
 
 *Windows*
 
-*\<test GUI coming soon\>*
+Convert alphabet into morse code:
+
+```bat
+> python bin\libmorse -v send -m "morse code"
+-- --- .-. ... . / -.-. --- -.. .
+```
+
+Convert morse code back into alphabet (save output above on disk):
+
+```bat
+> python bin\libmorse -v send -m -o morse.txt "morse code"
+> python bin\libmorse -v receive -m morse.txt
+MORSE CODE
+```
+
+Convert alphabet into morse code as pairs of signal/silence quanta:
+
+```bat
+> python bin\libmorse -v send -o morse.mor "morse code"
+> tail morse.mor -n 4
+0 300.0
+1 300.0
+0 900.0
+1 300.0
+```
+
+Convert quanta back into alphabet (above output already saved on disk):
+
+```bat
+> python bin\libmorse -v receive morse.mor
+MORSE CODE
+```
 
 *Linux*
 
 Same commands, just directly execute the `libmorse` script without the need to
-supply paths, like in the top example above.
+supply paths, like in the top Windows examples above.
 
 #### Within module:
 
 You can also import **libmorse** as a normal python module/library and use it
 accordingly in your Python scripts/projects.
 
-*\<details coming soon\>*
+Suppose we're having a source of signals and silences of different lengths,
+like these:
+
+```python
+items = [(True, 900.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 900.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 900.0),
+ (True, 300.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 900.0),
+ (True, 300.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 900.0),
+ (True, 300.0),
+ (False, 2100.0),
+ 
+ (True, 900.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 900.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 900.0),
+ (False, 900.0),
+ (True, 900.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 300.0),
+ (True, 300.0),
+ (False, 900.0),
+ (True, 300.0)]
+```
+
+Or a *.mor* file containing similar entries line by line (`True` and `False`
+normalized to `1` and `0`) which can be retrieved by using the
+`libmorse.get_mor_code` utility function, then you can automatically analyse
+and convert them into text by using the `libmorse.translate_morse` coroutine:
+
+```python
+>>> import libmorse
+
+>>> gen = libmorse.translate_morse()
+>>> gen.next()
+(<libmorse.translator.MorseTranslator at 0x7f324404ff50>, [])
+>>> for item in items[:24]:    # items above
+        gen.send(item)
+    
+>>> gen.send((True, 900.0))[1]
+[]
+>>> gen.send((False, 300.0))[1]
+[u'M', u'O', u'R', u'S', u'E', u' ']
+>>> gen.send((True, 300.0))[1]
+[]
+>>> gen.send((False, 300.0))[1]
+[]
+>>> gen.send((True, 900.0))[1]
+[]
+>>> gen.send((False, 300.0))[1]
+[]
+>>> gen.send((True, 300.0))[1]
+[]
+>>> gen.send((False, 900.0))[1]
+[]
+>>> gen.send((True, 900.0))[1]
+[]
+>>> gen.send((False, 300.0))[1]
+[u'C']
+
+# And so on, until we get the full text.
+```
+
+We've seen nothing for the first 24 quanta (12 signals and 12 silences) because
+that's the minimum amount of data we must cluster and analyse in order to
+correctly interpret each quanta and retrieve the text letter by letter starting
+from that given threshold.
 
 
 ## Development
