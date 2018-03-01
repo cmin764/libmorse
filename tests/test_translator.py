@@ -324,3 +324,18 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
     def test_basic_slow(self):
         mor_code = libmorse.get_mor_code("basic_slow.mor")
         self._test_morse(mor_code, "MORSE CODE")
+
+    def test_fluctuation(self):
+        mor_code = libmorse.get_mor_code("basic_fluctuation.mor")
+        self._test_morse(mor_code, "MORSE CODE")
+
+    def test_fluctuation_multi(self):
+        mor_code = libmorse.get_mor_code("basic_fluctuation.mor")
+
+        morse_code = []
+        times = random.randint(4, 6)
+        for _ in range(times):
+            morse_code.extend(mor_code)
+        expected = " ".join(["MORSE CODE"] * times)
+
+        self._test_morse(morse_code, expected)
