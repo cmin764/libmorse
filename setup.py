@@ -57,17 +57,18 @@ def get_data_files(source, files, use_source=False):
     return destination, paths
 
 
+LINUX = "linux" in sys.platform
 VENV = is_venv()
 PIP = "--single-version-externally-managed" in sys.argv
 LOCAL = PIP and any(map(lambda arg: arg.startswith("--home"), sys.argv))
-USE_SOURCE = LOCAL or (VENV and not PIP)
+USE_SOURCE = not LINUX or LOCAL or (VENV and not PIP)
 
 ETC, RES = map(lambda arg: os.path.join(arg, "libmorse"), ["etc", "res"])
 
 
 setup(
     name="libmorse",
-    version="0.3.0",
+    version="0.4.0",
     description="Convert timed signals into alphabet.",
     long_description=read("README.md") or "",
     url="https://github.com/cmin764/libmorse",

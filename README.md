@@ -194,6 +194,9 @@ that's the minimum amount of data we must cluster and analyse in order to
 correctly interpret each quanta and retrieve the text letter by letter starting
 from that given threshold.
 
+*For more details and examples, check the extensive API documentation described
+below.*
+
 
 ## Development
 
@@ -251,7 +254,7 @@ Don't forget to run with `sudo -H` if you're working outside the virtualenv.
 
 ```bash
 $ nosetests
-$ cd doc && make html
+$ cd docs && make html
 $ cd build/html && python -m SimpleHTTPServer
 ```
 

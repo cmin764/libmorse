@@ -334,6 +334,7 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
 
         morse_code = []
         times = random.randint(4, 6)
+        times = 5
         for _ in range(times):
             morse_code.extend(mor_code)
         expected = " ".join(["MORSE CODE"] * times)
