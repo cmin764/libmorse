@@ -254,6 +254,8 @@ class MorseTranslator(BaseTranslator):
         self._converter = converter.MorseConverter(*args, **kwargs)
         # Last set state of the last analysed signals/silences.
         self.last_state = None    # used to notify the outsides (changeable)
+        # Items saturation.
+        self._skip_type = None
 
         super(MorseTranslator, self).__init__(*args, **kwargs)
 
@@ -397,12 +399,19 @@ class MorseTranslator(BaseTranslator):
                 closest_dist = new_dist
                 closest_ratio = ratio
 
-        return closest_ratio == max_ratio
+        if (closest_ratio == max_ratio and
+                slen - closest_ratio * unit > -settings.NOISE_RATIO * unit):
+            return True
+        return False
 
     def _process(self, item):
         # Remove noise.
         if item[1] < settings.NOISE_RATIO * self.unit:
-            return None
+            return self.CLOSE_SENTINEL
+        # Check if skipped.
+        if self._skip_type is not None and self._skip_type == item[0]:
+            return self.CLOSE_SENTINEL
+        self._skip_type = None
 
         # Decide with what kind of item we begin first (signal/silence).
         if not self._begin:
@@ -454,6 +463,9 @@ class MorseTranslator(BaseTranslator):
                     # We've just added the last item instead of keeping it,
                     # therefore we don't have a last item anymore.
                     self._last = None
+                    # And also, we'll not accept the same signal/silence
+                    # anymore, until something new will come.
+                    self._skip_type = item[0]
 
         else:
             # There's no last item available, mark the current one as the
@@ -488,7 +500,9 @@ class MorseTranslator(BaseTranslator):
         return self._parse_morse_code() if news else self.CLOSE_SENTINEL
 
     def _correct_item(self, item):
-        """Return some states regarding the given signal/silence."""
+        """Save some states regarding the given signal/silence,
+        while normalizing it to a desired length.
+        """
         stype, slen = item
         unit = self.unit
         state = None    # nothing special
@@ -499,14 +513,15 @@ class MorseTranslator(BaseTranslator):
         else:
             # Analysing a silence.
             conf = self.config["silences"]
-            # Check a long pause.
-            max_ratio = self._get_minmax_ratio(conf["ratios"])
-            max_silence = max_ratio * unit
-            delta = slen - max_silence
-            limit = conf["mean_min_diff"] * unit
-            if delta > limit:
+        # Check a long signal/silence.
+        max_ratio = self._get_minmax_ratio(conf["ratios"])
+        max_length = max_ratio * unit
+        delta = slen - max_length
+        limit = conf["mean_min_diff"] * unit
+        if delta > limit:
+            slen = max_length
+            if not stype:
                 state = STATE.LONG_PAUSE
-                slen = max_silence
 
         if state:
             self.last_state = state

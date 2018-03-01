@@ -1,3 +1,5 @@
+import copy
+import itertools
 import random
 import time
 import unittest
@@ -286,3 +288,33 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
         mor_code = libmorse.get_mor_code("invalid_char.mor")
         # D is skipped because it is not found due to: ..-- (invalid).
         self._test_morse(mor_code, "MORSE COE")
+
+    def _test_incoherent(self, fraction):
+        unit = settings.UNIT
+        delta = unit * fraction
+        bools = [True, False]
+        signal, use_delta = map(
+            itertools.cycle,
+            (bools, itertools.chain(*zip(bools, bools)))
+        )
+        get_unit = (
+            lambda: (
+                (unit + random.uniform(-delta, delta)) if fraction < 1 else
+                (unit + int(use_delta.next()) * delta +
+                 random.uniform(0, unit * settings.NOISE_RATIO))
+            )
+        )
+
+        mor_code = [(signal.next(), get_unit())
+                    for _ in range(settings.SIGNAL_RANGE[1] * 2)]
+        self._test_morse(mor_code, "", humanize=False)
+
+    def test_incoherent_close(self):
+        self._test_incoherent(0.5)
+
+    def test_incoherent_far(self):
+        self._test_incoherent(12)
+
+    def test_signal_fractions(self):
+        mor_code = libmorse.get_mor_code("signal_fractions.mor")
+        self._test_morse(mor_code, "MORSE CODE 0M")
