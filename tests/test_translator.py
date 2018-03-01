@@ -289,7 +289,7 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
         # D is skipped because it is not found due to: ..-- (invalid).
         self._test_morse(mor_code, "MORSE COE")
 
-    def _test_incoherent(self, fraction):
+    def _test_incoherent(self, fraction, range_factor=2):
         unit = settings.UNIT
         delta = unit * fraction
         bools = [True, False]
@@ -305,16 +305,22 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
             )
         )
 
-        mor_code = [(signal.next(), get_unit())
-                    for _ in range(settings.SIGNAL_RANGE[1] * 2)]
+        mor_code = [
+            (signal.next(), get_unit())
+            for _ in range(int(settings.SIGNAL_RANGE[1] * range_factor))
+        ]
         self._test_morse(mor_code, "", humanize=False)
 
     def test_incoherent_close(self):
         self._test_incoherent(0.5)
 
     def test_incoherent_far(self):
-        self._test_incoherent(12)
+        self._test_incoherent(13, range_factor=3)
 
     def test_signal_fractions(self):
         mor_code = libmorse.get_mor_code("signal_fractions.mor")
         self._test_morse(mor_code, "MORSE CODE 0M")
+
+    def test_basic_slow(self):
+        mor_code = libmorse.get_mor_code("basic_slow.mor")
+        self._test_morse(mor_code, "MORSE CODE")

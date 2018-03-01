@@ -76,7 +76,7 @@ class BaseTranslator(Logger):
     def unit(self):
         """Returns the length in ms of the most basic morse unit."""
         if not self._unit:
-            return settings.UNIT
+            return None
         return sum(self._unit) / len(self._unit)
 
     @unit.setter
@@ -117,13 +117,17 @@ class BaseTranslator(Logger):
                 break
 
             if not self.closed:
-                results = self._process(item)
-                if not isinstance(results, (tuple, list, set)):
-                    results = [results]
-                for result in results:
-                    if result != self.CLOSE_SENTINEL:
-                        # Add rightful results only.
-                        self._output_queue.put(result)
+                try:
+                    results = self._process(item)
+                except exceptions.TranslatorMorseError as exc:
+                    self.log.error(exc)
+                else:
+                    if not isinstance(results, (tuple, list, set)):
+                        results = [results]
+                    for result in results:
+                        if result != self.CLOSE_SENTINEL:
+                            # Add rightful results only.
+                            self._output_queue.put(result)
 
             self._input_queue.task_done()
 
@@ -383,13 +387,16 @@ class MorseTranslator(BaseTranslator):
 
     def _check_add_last(self):
         """Returns True if the signal is the longest of its kind."""
+        unit = self.unit
+        if not unit:
+            return False
+
         stype, slen = self._last
         selected = "signals" if stype else "silences"
         config = self.config[selected]
         ratios = config["ratios"]
         normed_ratios_values = self._calc_ratios(ratios).values()
         max_ratio = max(normed_ratios_values)
-        unit = self.unit
 
         closest_ratio = normed_ratios_values[0]
         closest_dist = abs(closest_ratio * unit - slen)
@@ -406,7 +413,8 @@ class MorseTranslator(BaseTranslator):
 
     def _process(self, item):
         # Remove noise.
-        if item[1] < settings.NOISE_RATIO * self.unit:
+        unit = self.unit
+        if unit and item[1] < settings.NOISE_RATIO * unit:
             return self.CLOSE_SENTINEL
         # Check if skipped.
         if self._skip_type is not None and self._skip_type == item[0]:
@@ -503,16 +511,19 @@ class MorseTranslator(BaseTranslator):
         """Save some states regarding the given signal/silence,
         while normalizing it to a desired length.
         """
-        stype, slen = item
         unit = self.unit
-        state = None    # nothing special
+        if not unit:
+            return item
 
+        stype, slen = item
+        state = None    # nothing special
         if stype:
             # Analysing a signal.
             conf = self.config["signals"]
         else:
             # Analysing a silence.
             conf = self.config["silences"]
+
         # Check a long signal/silence.
         max_ratio = self._get_minmax_ratio(conf["ratios"])
         max_length = max_ratio * unit

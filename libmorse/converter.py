@@ -98,10 +98,11 @@ class AlphabetConverter(BaseConverter):
             else:
                 letter = self._morse_dict.get(char)
                 if not letter:
-                    if not self._silence_errors:
-                        raise exceptions.ConverterMorseError(
-                            "latin character not found"
-                        )
+                    msg = "latin character not found"
+                    if self._silence_errors:
+                        self._log_error(msg)
+                    else:
+                        raise exceptions.ConverterMorseError(msg)
                 if self._last_char not in (None, " "):
                     gap = SHORT_GAP
                 self._last_char = char
@@ -121,10 +122,11 @@ class MorseConverter(BaseConverter):
 
     def _get_tree_char(self, node, code):
         def raise_not_found():
-            if not self._silence_errors:
-                raise exceptions.ConverterMorseError(
-                    "morse letter not found"
-                )
+            msg = "morse letter not found"
+            if self._silence_errors:
+                self._log_error(msg)
+            else:
+                raise exceptions.ConverterMorseError(msg)
 
         if not code:
             if hasattr(node, "char") and node.char:

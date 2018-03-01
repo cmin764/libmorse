@@ -87,3 +87,6 @@ class Logger(object):
         """
         super(Logger, self).__init__()
         self.log = get_logger(name, use_logging=use_logging, debug=debug)
+
+    def _log_error(self, message):
+        self.log.error(message.strip(".").capitalize() + ".")
