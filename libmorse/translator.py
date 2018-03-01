@@ -245,7 +245,7 @@ class MorseTranslator(BaseTranslator):
         self._silences = collections.deque(maxlen=self.MAXLEN)
         # First and last provided items.
         self._begin = None
-        self._last = None
+        self.last_item = None
         # Actual morse code, divided and combined.
         self._morse_signals = []
         self._morse_silences = []
@@ -391,7 +391,7 @@ class MorseTranslator(BaseTranslator):
         if not unit:
             return False
 
-        stype, slen = self._last
+        stype, slen = self.last_item
         selected = "signals" if stype else "silences"
         config = self.config[selected]
         ratios = config["ratios"]
@@ -432,21 +432,21 @@ class MorseTranslator(BaseTranslator):
         # Take the last saved item and join with the new one if it's from the
         # same kind, otherwise just add the last one and mark a new last item
         # out of this new one.
-        if self._last:
+        if self.last_item:
             # We have a last item available.
             # Now check if is from the same family and if yes, then merge the
             # two of them together.
             add_last = False
 
-            if item[0] == self._last[0]:
+            if item[0] == self.last_item[0]:
                 # Join durations and update the last item.
-                item = (item[0], item[1] + self._last[1])
-                self._last = item
+                item = (item[0], item[1] + self.last_item[1])
+                self.last_item = item
                 add_last = self._check_add_last()
 
-            if item[0] != self._last[0] or add_last:
+            if item[0] != self.last_item[0] or add_last:
                 # Decide active container depending on the signal type.
-                if self._last[0]:
+                if self.last_item[0]:
                     container = self._signals
                     selected = "signals"
                 else:
@@ -464,13 +464,13 @@ class MorseTranslator(BaseTranslator):
                         )
                     config["offset"] -= 1
                 # Add a new corrected signal (duration only).
-                last = self._correct_item(self._last)
+                last = self._correct_item(self.last_item)
                 container.append(last[1])
-                self._last = item
+                self.last_item = item
                 if add_last:
                     # We've just added the last item instead of keeping it,
                     # therefore we don't have a last item anymore.
-                    self._last = None
+                    self.last_item = None
                     # And also, we'll not accept the same signal/silence
                     # anymore, until something new will come.
                     self._skip_type = item[0]
@@ -478,7 +478,7 @@ class MorseTranslator(BaseTranslator):
         else:
             # There's no last item available, mark the current one as the
             # last one.
-            self._last = item
+            self.last_item = item
             # Nothing will happen, because we just have empty queues.
 
         # Re-process the new state of the active queues and try to give a
@@ -590,7 +590,11 @@ def translate_morse(*args, **kwargs):
         item = yield translator, results
 
         if enable_renewal and new_trans:
+            translator.wait()
+            translator.close()
+            last_item = translator.last_item
             translator = get_translator()
+            translator.last_item = last_item
         if item == translator.CLOSE_SENTINEL:
             translator.close()
             break
