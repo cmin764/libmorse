@@ -1,4 +1,4 @@
-# libmorse
+# libmorse [![Documentation Status](https://readthedocs.org/projects/libmorse/badge/?version=latest)](https://libmorse.readthedocs.io/en/latest/?badge=latest)
 
 Convert timed signals into alphabet.
 
