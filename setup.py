@@ -68,7 +68,7 @@ ETC, RES = map(lambda arg: os.path.join(arg, "libmorse"), ["etc", "res"])
 
 setup(
     name="libmorse",
-    version="0.4.3",
+    version="0.4.4",
     description="Convert timed signals into alphabet.",
     long_description=read("README.md") or "",
     url="https://github.com/cmin764/libmorse",
@@ -93,9 +93,15 @@ setup(
             (
                 RES,
                 [
+                    "basic_fluctuation.mor",
                     "basic.mor",
                     "basic_noise.mor",
+                    "basic_slow.mor",
+                    "invalid_char.mor",
+                    "isolated_noise.mor",
+                    "long_pause.mor",
                     "morse.json",
+                    "signal_fractions.mor",
                 ]
             )
         ]
