@@ -93,9 +93,15 @@ setup(
             (
                 RES,
                 [
+                    "basic_fluctuation.mor",
                     "basic.mor",
                     "basic_noise.mor",
+                    "basic_slow.mor",
+                    "invalid_char.mor",
+                    "isolated_noise.mor",
+                    "long_pause.mor",
                     "morse.json",
+                    "signal_fractions.mor",
                 ]
             )
         ]
