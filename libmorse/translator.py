@@ -331,8 +331,11 @@ class MorseTranslator(BaseTranslator):
 
     @staticmethod
     def _update_ratios(conf_ratios, means):
-        # FIXME(cmiN): sort by average value, not total sum.
-        symbols = sorted(conf_ratios, key=lambda arg: conf_ratios[arg][0])
+        def sort_ratios(symbol):
+            metric = conf_ratios[symbol]
+            return metric[0] / metric[1]
+
+        symbols = sorted(conf_ratios, key=sort_ratios)
         unit = min(means)
         new_ratios = [mean / unit for mean in sorted(means)]
 
