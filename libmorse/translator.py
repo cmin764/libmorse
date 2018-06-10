@@ -546,8 +546,7 @@ class MorseTranslator(BaseTranslator):
     @property
     def medium_gap_ratio(self):
         conf_ratios = self.config["silences"]["ratios"]
-        normed_ratios = self._calc_ratios(conf_ratios)
-        return max(normed_ratios.values())
+        return self._get_minmax_ratio(conf_ratios)
 
 
 def get_translator_results(translator, force_wait=False):
