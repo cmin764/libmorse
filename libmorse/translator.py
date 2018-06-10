@@ -5,6 +5,7 @@ import Queue
 import abc
 import collections
 import copy
+import functools
 import itertools
 import threading
 
@@ -26,19 +27,30 @@ class BaseTranslator(Logger):
     """Base class for any kind of translator"""
 
     CLOSE_SENTINEL = None
-    MAXLEN = settings.SIGNAL_RANGE[1]
+    SIG_MINLEN, SIG_MAXLEN = settings.SIG_RANGE
+    SIL_MINLEN, SIL_MAXLEN = settings.SIL_RANGE
+    FACTORS = settings.RATIO_HANDICAP
 
+    handicapify = (lambda vec, handi_factor=None:
+                   [item * handi_factor for item in vec])
+    sig_handicap, sil_handicap = map(
+        lambda factor, func=handicapify: functools.partial(
+            func,
+            handi_factor=factor
+        ),
+        [FACTORS.SIGNALS, FACTORS.SILENCES]
+    )
     CONFIG = {
         "signals": {
             "type": "signals",
             "means": 2,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "mean_max_diff": settings.MEAN_MAX_DIFF,
-            "min_length": settings.SIGNAL_RANGE[0],
+            "min_length": SIG_MINLEN,
             # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.DOT: [1.0, 1],
-                converter.DASH: [3.0, 1],
+                converter.DOT: sig_handicap([1.0, 1]),
+                converter.DASH: sig_handicap([3.0, 1]),
             },
             "offset": 0,
         },
@@ -47,12 +59,12 @@ class BaseTranslator(Logger):
             "means": 3,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "mean_max_diff": settings.MEAN_MAX_DIFF,
-            "min_length": settings.SIGNAL_RANGE[0],
+            "min_length": SIL_MINLEN,
             # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.INTRA_GAP: [1.0, 1],
-                converter.SHORT_GAP: [3.0, 1],
-                converter.MEDIUM_GAP: [7.0, 1],
+                converter.INTRA_GAP: sil_handicap([1.0, 1]),
+                converter.SHORT_GAP: sil_handicap([3.0, 1]),
+                converter.MEDIUM_GAP: sil_handicap([7.0, 1]),
             },
             "offset": 0,
         },
@@ -85,7 +97,8 @@ class BaseTranslator(Logger):
     @unit.setter
     def unit(self, unit):
         del self.unit
-        self._unit = collections.deque(maxlen=self.MAXLEN)
+        maxlen = max(self.SIG_MAXLEN, self.SIL_MAXLEN)
+        self._unit = collections.deque(maxlen=maxlen)
         if unit:
             self._unit.append(unit)
 
@@ -191,18 +204,21 @@ class AlphabetTranslator(BaseTranslator):
     """Alphabet to morse translator."""
 
     def __init__(self, *args, **kwargs):
+        super(AlphabetTranslator, self).__init__(*args, **kwargs)
+
         self._converter = converter.AlphabetConverter(*args, **kwargs)
         # Use predefined ratios when creating timings.
         self._ratios = {}
+        self.update_ratios(self.config)
+
+    def update_ratios(self, config):
+        """Update the standard ratios with custom learned ones within a
+        custom configuration.
+        """
         for ent in ("signals", "silences"):
-            self.update_ratios(self.CONFIG[ent]["ratios"])
-
-        super(AlphabetTranslator, self).__init__(*args, **kwargs)
-
-    def update_ratios(self, ratios):
-        """Update the standard ratios with custom learned ones."""
-        normed_ratios = self._calc_ratios(ratios)
-        self._ratios.update(normed_ratios)
+            ratios = config[ent]["ratios"]
+            normed_ratios = self._calc_ratios(ratios)
+            self._ratios.update(normed_ratios)
 
     def _process(self, item):
         # Convert every new character into a morse letter.
@@ -242,10 +258,12 @@ class MorseTranslator(BaseTranslator):
     """Morse to alphabet translator."""
 
     def __init__(self, *args, **kwargs):
+        super(MorseTranslator, self).__init__(*args, **kwargs)
+
         # Actively analysed signals.
-        self._signals = collections.deque(maxlen=self.MAXLEN)
+        self._signals = collections.deque(maxlen=self.SIG_MAXLEN)
         # Actively analysed silences; the same range may work.
-        self._silences = collections.deque(maxlen=self.MAXLEN)
+        self._silences = collections.deque(maxlen=self.SIL_MAXLEN)
         # First and last provided items.
         self._begin = None
         self.last_item = None
@@ -261,8 +279,6 @@ class MorseTranslator(BaseTranslator):
         self._converter = converter.MorseConverter(*args, **kwargs)
         # Items saturation.
         self._skip_type = None
-
-        super(MorseTranslator, self).__init__(*args, **kwargs)
 
         # Custom learned units allowed only.
         self.unit = None
@@ -329,14 +345,13 @@ class MorseTranslator(BaseTranslator):
         # Return the original means along the labels distribution.
         return means * factor, labels
 
-    @staticmethod
-    def _update_ratios(conf_ratios, means):
+    def _update_ratios(self, conf_ratios, means):
         def sort_ratios(symbol):
             metric = conf_ratios[symbol]
             return metric[0] / metric[1]
 
         symbols = sorted(conf_ratios, key=sort_ratios)
-        unit = min(means)
+        unit = self.unit
         new_ratios = [mean / unit for mean in sorted(means)]
 
         for idx, symbol in enumerate(symbols):
@@ -412,7 +427,7 @@ class MorseTranslator(BaseTranslator):
                 closest_ratio = ratio
 
         if (closest_ratio == max_ratio and
-                slen - closest_ratio * unit > -settings.NOISE_RATIO * unit):
+                slen - closest_ratio * unit > unit):
             return True
         return False
 
@@ -437,6 +452,8 @@ class MorseTranslator(BaseTranslator):
         # Take the last saved item and join with the new one if it's from the
         # same kind, otherwise just add the last one and mark a new last item
         # out of this new one.
+        selected = None
+        added_item = False
         if self.last_item:
             # We have a last item available.
             # Now check if is from the same family and if yes, then merge the
@@ -471,6 +488,7 @@ class MorseTranslator(BaseTranslator):
                 # Add a new corrected signal (duration only).
                 last = self._correct_item(self.last_item)
                 container.append(last[1])
+                added_item = True
                 self.last_item = item
                 if add_last:
                     # We've just added the last item instead of keeping it,
@@ -489,11 +507,14 @@ class MorseTranslator(BaseTranslator):
         # Re-process the new state of the active queues and try to give a
         # result based on the current set of signals and silences.
         pairs = [
-            (self._signals, self.config["signals"], self._morse_signals),
-            (self._silences, self.config["silences"], self._morse_silences)
+            (self._signals, self.config["signals"], self._morse_signals,
+             selected == "signals"),
+            (self._silences, self.config["silences"], self._morse_silences,
+             selected == "silences")
         ]
-        for container, config, collection in pairs:
-            if len(container) >= config["min_length"]:
+        for container, config, collection, choice in pairs:
+            must_analyse = added_item and choice
+            if len(container) >= config["min_length"] and must_analyse:
                 signals = self._analyse(container, config)
                 collection.extend(signals or [])
 
@@ -546,8 +567,7 @@ class MorseTranslator(BaseTranslator):
     @property
     def medium_gap_ratio(self):
         conf_ratios = self.config["silences"]["ratios"]
-        normed_ratios = self._calc_ratios(conf_ratios)
-        return max(normed_ratios.values())
+        return self._get_minmax_ratio(conf_ratios)
 
 
 def get_translator_results(translator, force_wait=False):

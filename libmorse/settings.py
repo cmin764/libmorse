@@ -26,7 +26,8 @@ ENCODING = "utf-8"
 
 # Translator settings.
 # Minimum and maximum size of the analysed active range of morse signals.
-SIGNAL_RANGE = (12, 36)
+SIG_RANGE = (7, 36)
+SIL_RANGE = (12, 64)
 # Minimal and maximal accepted delta between any two means in percentage of
 # unit.
 MEAN_MIN_DIFF = 1.1
@@ -35,7 +36,13 @@ MEAN_MAX_DIFF = 11.9
 UNIT = 300.0    # should be float
 # Less than this from unit is considered undesired noise.
 NOISE_RATIO = 0.1
+# Standard positive handicap for the preset ratios.
+class RATIO_HANDICAP:
+    handi_func = lambda range_type: max(1, int(range_type[0] * (1.0 / 3)))
+    SIGNALS = handi_func(SIG_RANGE)
+    SILENCES = handi_func(SIL_RANGE)
+
 # Enable translator renewal after certain states/events.
 ENABLE_RENEWAL = False
-# How many k-means iterations to run at most (non-empty clusters).
+# How many k-means iterations to run at most (getting non-empty clusters).
 CLUSTER_ITER = 10

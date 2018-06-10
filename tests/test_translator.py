@@ -184,7 +184,7 @@ class TestMorseTranslator(unittest.TestCase, TestMorseMixin):
         # Make a few tests with different data, but the very same labeling.
         for crt in range(tests_dim):
             # How many signals of each label.
-            sig_dim = np.random.randint(*settings.SIGNAL_RANGE) / clusters_dim
+            sig_dim = np.random.randint(*settings.SIG_RANGE) / clusters_dim
             # The actual signals.
             signals = []
             for mean in ideal_means:
@@ -294,7 +294,10 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
         bools = [True, False]
         signal, use_delta = map(
             itertools.cycle,
-            (bools, itertools.chain(*zip(bools, bools)))
+            (
+                bools,
+                itertools.chain(*zip(bools, bools))
+            )
         )
         get_unit = (
             lambda: (
@@ -304,9 +307,10 @@ class TestTranslateMorse(unittest.TestCase, TestMorseMixin):
             )
         )
 
+        max_range = max(settings.SIG_RANGE, settings.SIL_RANGE)
         mor_code = [
             (signal.next(), get_unit())
-            for _ in range(int(settings.SIGNAL_RANGE[1] * range_factor))
+            for _ in range(int(max_range[1] * range_factor))
         ]
         self._test_morse(mor_code, "", humanize=False)
 
