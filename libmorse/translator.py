@@ -194,15 +194,18 @@ class AlphabetTranslator(BaseTranslator):
         self._converter = converter.AlphabetConverter(*args, **kwargs)
         # Use predefined ratios when creating timings.
         self._ratios = {}
-        for ent in ("signals", "silences"):
-            self.update_ratios(self.CONFIG[ent]["ratios"])
+        self.update_ratios(self.config)
 
         super(AlphabetTranslator, self).__init__(*args, **kwargs)
 
-    def update_ratios(self, ratios):
-        """Update the standard ratios with custom learned ones."""
-        normed_ratios = self._calc_ratios(ratios)
-        self._ratios.update(normed_ratios)
+    def update_ratios(self, config):
+        """Update the standard ratios with custom learned ones within a
+        custom configuration.
+        """
+        for ent in ("signals", "silences"):
+            ratios = config[ent]["ratios"]
+            normed_ratios = self._calc_ratios(ratios)
+            self._ratios.update(normed_ratios)
 
     def _process(self, item):
         # Convert every new character into a morse letter.
