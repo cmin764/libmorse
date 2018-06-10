@@ -28,7 +28,7 @@ class BaseTranslator(Logger):
     CLOSE_SENTINEL = None
     MINLEN, MAXLEN = settings.SIGNAL_RANGE
 
-    handicap = lambda vec, minlen=MINLEN: [item * minlen for item in vec]
+    handicap = lambda vec: [item * settings.RATIO_HANDICAP for item in vec]
     CONFIG = {
         "signals": {
             "type": "signals",

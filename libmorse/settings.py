@@ -35,6 +35,8 @@ MEAN_MAX_DIFF = 11.9
 UNIT = 300.0    # should be float
 # Less than this from unit is considered undesired noise.
 NOISE_RATIO = 0.1
+# Standard positive handicap for the preset ratios.
+RATIO_HANDICAP = max(1, int(SIGNAL_RANGE[0] * (1.0 / 3)))
 # Enable translator renewal after certain states/events.
 ENABLE_RENEWAL = False
 # How many k-means iterations to run at most (getting non-empty clusters).
