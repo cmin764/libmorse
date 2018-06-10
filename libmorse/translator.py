@@ -5,6 +5,7 @@ import Queue
 import abc
 import collections
 import copy
+import functools
 import itertools
 import threading
 
@@ -26,20 +27,30 @@ class BaseTranslator(Logger):
     """Base class for any kind of translator"""
 
     CLOSE_SENTINEL = None
-    MINLEN, MAXLEN = settings.SIGNAL_RANGE
+    SIG_MINLEN, SIG_MAXLEN = settings.SIG_RANGE
+    SIL_MINLEN, SIL_MAXLEN = settings.SIL_RANGE
+    FACTORS = settings.RATIO_HANDICAP
 
-    handicap = lambda vec: [item * settings.RATIO_HANDICAP for item in vec]
+    handicapify = (lambda vec, handi_factor=None:
+                   [item * handi_factor for item in vec])
+    sig_handicap, sil_handicap = map(
+        lambda factor, func=handicapify: functools.partial(
+            func,
+            handi_factor=factor
+        ),
+        [FACTORS.SIGNALS, FACTORS.SILENCES]
+    )
     CONFIG = {
         "signals": {
             "type": "signals",
             "means": 2,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "mean_max_diff": settings.MEAN_MAX_DIFF,
-            "min_length": MINLEN,
+            "min_length": SIG_MINLEN,
             # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.DOT: handicap([1.0, 1]),
-                converter.DASH: handicap([3.0, 1]),
+                converter.DOT: sig_handicap([1.0, 1]),
+                converter.DASH: sig_handicap([3.0, 1]),
             },
             "offset": 0,
         },
@@ -48,12 +59,12 @@ class BaseTranslator(Logger):
             "means": 3,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "mean_max_diff": settings.MEAN_MAX_DIFF,
-            "min_length": MINLEN,
+            "min_length": SIL_MINLEN,
             # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.INTRA_GAP: handicap([1.0, 1]),
-                converter.SHORT_GAP: handicap([3.0, 1]),
-                converter.MEDIUM_GAP: handicap([7.0, 1]),
+                converter.INTRA_GAP: sil_handicap([1.0, 1]),
+                converter.SHORT_GAP: sil_handicap([3.0, 1]),
+                converter.MEDIUM_GAP: sil_handicap([7.0, 1]),
             },
             "offset": 0,
         },
@@ -86,7 +97,8 @@ class BaseTranslator(Logger):
     @unit.setter
     def unit(self, unit):
         del self.unit
-        self._unit = collections.deque(maxlen=self.MAXLEN)
+        maxlen = max(self.SIG_MAXLEN, self.SIL_MAXLEN)
+        self._unit = collections.deque(maxlen=maxlen)
         if unit:
             self._unit.append(unit)
 
@@ -249,9 +261,9 @@ class MorseTranslator(BaseTranslator):
         super(MorseTranslator, self).__init__(*args, **kwargs)
 
         # Actively analysed signals.
-        self._signals = collections.deque(maxlen=self.MAXLEN)
+        self._signals = collections.deque(maxlen=self.SIG_MAXLEN)
         # Actively analysed silences; the same range may work.
-        self._silences = collections.deque(maxlen=self.MAXLEN)
+        self._silences = collections.deque(maxlen=self.SIL_MAXLEN)
         # First and last provided items.
         self._begin = None
         self.last_item = None
