@@ -427,7 +427,7 @@ class MorseTranslator(BaseTranslator):
                 closest_ratio = ratio
 
         if (closest_ratio == max_ratio and
-                slen - closest_ratio * unit > -settings.NOISE_RATIO * unit):
+                slen - closest_ratio * unit > unit):
             return True
         return False
 
@@ -452,6 +452,8 @@ class MorseTranslator(BaseTranslator):
         # Take the last saved item and join with the new one if it's from the
         # same kind, otherwise just add the last one and mark a new last item
         # out of this new one.
+        selected = None
+        added_item = False
         if self.last_item:
             # We have a last item available.
             # Now check if is from the same family and if yes, then merge the
@@ -486,6 +488,7 @@ class MorseTranslator(BaseTranslator):
                 # Add a new corrected signal (duration only).
                 last = self._correct_item(self.last_item)
                 container.append(last[1])
+                added_item = True
                 self.last_item = item
                 if add_last:
                     # We've just added the last item instead of keeping it,
@@ -504,11 +507,14 @@ class MorseTranslator(BaseTranslator):
         # Re-process the new state of the active queues and try to give a
         # result based on the current set of signals and silences.
         pairs = [
-            (self._signals, self.config["signals"], self._morse_signals),
-            (self._silences, self.config["silences"], self._morse_silences)
+            (self._signals, self.config["signals"], self._morse_signals,
+             selected == "signals"),
+            (self._silences, self.config["silences"], self._morse_silences,
+             selected == "silences")
         ]
-        for container, config, collection in pairs:
-            if len(container) >= config["min_length"]:
+        for container, config, collection, choice in pairs:
+            must_analyse = added_item and choice
+            if len(container) >= config["min_length"] and must_analyse:
                 signals = self._analyse(container, config)
                 collection.extend(signals or [])
 
