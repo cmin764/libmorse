@@ -63,10 +63,14 @@ def receive_function(args):
             translator.put(item)
         translator.wait()
         ending = []
-        libmorse.humanize_mor_code(
-            ending, unit=translator.unit, ratio=translator.medium_gap_ratio,
-            split=True
-        )
+        unit = translator.unit
+        if unit:
+            libmorse.humanize_mor_code(
+                ending, unit=unit,
+                ratio=translator.medium_gap_ratio, split=True
+            )
+        else:
+            log.warning("Not enough fed signals.")
         for item in ending:
             translator.put(item)
         _, symbols = libmorse.get_translator_results(
