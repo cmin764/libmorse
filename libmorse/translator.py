@@ -191,12 +191,12 @@ class AlphabetTranslator(BaseTranslator):
     """Alphabet to morse translator."""
 
     def __init__(self, *args, **kwargs):
+        super(AlphabetTranslator, self).__init__(*args, **kwargs)
+
         self._converter = converter.AlphabetConverter(*args, **kwargs)
         # Use predefined ratios when creating timings.
         self._ratios = {}
         self.update_ratios(self.config)
-
-        super(AlphabetTranslator, self).__init__(*args, **kwargs)
 
     def update_ratios(self, config):
         """Update the standard ratios with custom learned ones within a
@@ -245,6 +245,8 @@ class MorseTranslator(BaseTranslator):
     """Morse to alphabet translator."""
 
     def __init__(self, *args, **kwargs):
+        super(MorseTranslator, self).__init__(*args, **kwargs)
+
         # Actively analysed signals.
         self._signals = collections.deque(maxlen=self.MAXLEN)
         # Actively analysed silences; the same range may work.
@@ -264,8 +266,6 @@ class MorseTranslator(BaseTranslator):
         self._converter = converter.MorseConverter(*args, **kwargs)
         # Items saturation.
         self._skip_type = None
-
-        super(MorseTranslator, self).__init__(*args, **kwargs)
 
         # Custom learned units allowed only.
         self.unit = None
