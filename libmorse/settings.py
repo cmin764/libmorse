@@ -37,5 +37,5 @@ UNIT = 300.0    # should be float
 NOISE_RATIO = 0.1
 # Enable translator renewal after certain states/events.
 ENABLE_RENEWAL = False
-# How many k-means iterations to run at most (non-empty clusters).
+# How many k-means iterations to run at most (getting non-empty clusters).
 CLUSTER_ITER = 10

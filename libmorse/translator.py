@@ -26,19 +26,20 @@ class BaseTranslator(Logger):
     """Base class for any kind of translator"""
 
     CLOSE_SENTINEL = None
-    MAXLEN = settings.SIGNAL_RANGE[1]
+    MINLEN, MAXLEN = settings.SIGNAL_RANGE
 
+    handicap = lambda vec, minlen=MINLEN: [item * minlen for item in vec]
     CONFIG = {
         "signals": {
             "type": "signals",
             "means": 2,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "mean_max_diff": settings.MEAN_MAX_DIFF,
-            "min_length": settings.SIGNAL_RANGE[0],
+            "min_length": MINLEN,
             # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.DOT: [1.0, 1],
-                converter.DASH: [3.0, 1],
+                converter.DOT: handicap([1.0, 1]),
+                converter.DASH: handicap([3.0, 1]),
             },
             "offset": 0,
         },
@@ -47,12 +48,12 @@ class BaseTranslator(Logger):
             "means": 3,
             "mean_min_diff": settings.MEAN_MIN_DIFF,
             "mean_max_diff": settings.MEAN_MAX_DIFF,
-            "min_length": settings.SIGNAL_RANGE[0],
+            "min_length": MINLEN,
             # Tuples of (sum_of_ratios, ratios_count).
             "ratios": {
-                converter.INTRA_GAP: [1.0, 1],
-                converter.SHORT_GAP: [3.0, 1],
-                converter.MEDIUM_GAP: [7.0, 1],
+                converter.INTRA_GAP: handicap([1.0, 1]),
+                converter.SHORT_GAP: handicap([3.0, 1]),
+                converter.MEDIUM_GAP: handicap([7.0, 1]),
             },
             "offset": 0,
         },
@@ -332,14 +333,13 @@ class MorseTranslator(BaseTranslator):
         # Return the original means along the labels distribution.
         return means * factor, labels
 
-    @staticmethod
-    def _update_ratios(conf_ratios, means):
+    def _update_ratios(self, conf_ratios, means):
         def sort_ratios(symbol):
             metric = conf_ratios[symbol]
             return metric[0] / metric[1]
 
         symbols = sorted(conf_ratios, key=sort_ratios)
-        unit = min(means)
+        unit = self.unit
         new_ratios = [mean / unit for mean in sorted(means)]
 
         for idx, symbol in enumerate(symbols):
