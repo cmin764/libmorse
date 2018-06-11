@@ -317,9 +317,9 @@ class MorseTranslator(BaseTranslator):
 
     def _stable_kmeans(self, container, clusters):
         # Normalize the elements to be clustered.
-        factor = container[0]
+        factor = container[-1]
         container = whiten(container)
-        factor /= container[0]
+        factor /= container[-1]
         # Get the stable means.
         count = settings.CLUSTER_ITER
 
@@ -431,6 +431,44 @@ class MorseTranslator(BaseTranslator):
             return True
         return False
 
+    def _correct_item(self, item, save_state=True):
+        """Save some states regarding the given signal/silence,
+        while normalizing it to an adequate length.
+        """
+        unit = self.unit
+        if not unit:
+            return item
+
+        stype, slen = item
+        state = None    # nothing special
+        if stype:
+            # Analysing a signal.
+            conf = self.config["signals"]
+        else:
+            # Analysing a silence.
+            conf = self.config["silences"]
+
+        # Check a long signal/silence.
+        max_ratio = self._get_minmax_ratio(conf["ratios"])
+        max_length = max_ratio * unit
+        delta = slen - max_length
+        limit = conf["mean_min_diff"] * unit
+        if delta > limit:
+            slen = max_length
+            if not stype:
+                state = STATE.LONG_PAUSE
+
+        if state and save_state:
+            self.last_state = state
+        return stype, slen
+
+    def _correct_container(self, container, stype):
+        """Normalize the maximum length of each item found in `container`."""
+        for idx, slen in enumerate(container):
+            item = (stype, slen)
+            item = self._correct_item(item, save_state=False)
+            container[idx] = item[1]
+
     def _process(self, item):
         # Remove noise.
         unit = self.unit
@@ -495,7 +533,7 @@ class MorseTranslator(BaseTranslator):
                     # therefore we don't have a last item anymore.
                     self.last_item = None
                     # And also, we'll not accept the same signal/silence
-                    # anymore, until something new will come.
+                    # anymore, until something different will come.
                     self._skip_type = item[0]
 
         else:
@@ -515,6 +553,8 @@ class MorseTranslator(BaseTranslator):
         for container, config, collection, choice in pairs:
             must_analyse = added_item and choice
             if len(container) >= config["min_length"] and must_analyse:
+                stype = config["type"] == "signals"
+                self._correct_container(container, stype)
                 signals = self._analyse(container, config)
                 collection.extend(signals or [])
 
@@ -532,37 +572,6 @@ class MorseTranslator(BaseTranslator):
         # Parse the actual morse code and send the result for the output
         # queue if applicable.
         return self._parse_morse_code() if news else self.CLOSE_SENTINEL
-
-    def _correct_item(self, item):
-        """Save some states regarding the given signal/silence,
-        while normalizing it to a desired length.
-        """
-        unit = self.unit
-        if not unit:
-            return item
-
-        stype, slen = item
-        state = None    # nothing special
-        if stype:
-            # Analysing a signal.
-            conf = self.config["signals"]
-        else:
-            # Analysing a silence.
-            conf = self.config["silences"]
-
-        # Check a long signal/silence.
-        max_ratio = self._get_minmax_ratio(conf["ratios"])
-        max_length = max_ratio * unit
-        delta = slen - max_length
-        limit = conf["mean_min_diff"] * unit
-        if delta > limit:
-            slen = max_length
-            if not stype:
-                state = STATE.LONG_PAUSE
-
-        if state:
-            self.last_state = state
-        return stype, slen
 
     @property
     def medium_gap_ratio(self):

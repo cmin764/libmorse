@@ -36,6 +36,7 @@ MEAN_MAX_DIFF = 11.9
 UNIT = 300.0    # should be float
 # Less than this from unit is considered undesired noise.
 NOISE_RATIO = 0.1
+
 # Standard positive handicap for the preset ratios.
 class RATIO_HANDICAP:
     handi_func = lambda range_type: max(1, int(range_type[0] * (1.0 / 3)))
