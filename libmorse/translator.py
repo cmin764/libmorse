@@ -317,9 +317,9 @@ class MorseTranslator(BaseTranslator):
 
     def _stable_kmeans(self, container, clusters):
         # Normalize the elements to be clustered.
-        factor = container[0]
+        factor = container[-1]
         container = whiten(container)
-        factor /= container[0]
+        factor /= container[-1]
         # Get the stable means.
         count = settings.CLUSTER_ITER
 
@@ -431,16 +431,16 @@ class MorseTranslator(BaseTranslator):
             return True
         return False
 
-    def _correct_item(self, item):
+    def _correct_item(self, item, save_state=True):
         """Save some states regarding the given signal/silence,
-        while normalizing it to a desired length.
+        while normalizing it to an adequate length.
         """
         unit = self.unit
         if not unit:
             return item
 
         stype, slen = item
-        state = None  # nothing special
+        state = None    # nothing special
         if stype:
             # Analysing a signal.
             conf = self.config["signals"]
@@ -458,9 +458,16 @@ class MorseTranslator(BaseTranslator):
             if not stype:
                 state = STATE.LONG_PAUSE
 
-        if state:
+        if state and save_state:
             self.last_state = state
         return stype, slen
+
+    def _correct_container(self, container, stype):
+        """Normalize the maximum length of each item found in `container`."""
+        for idx, slen in enumerate(container):
+            item = (stype, slen)
+            item = self._correct_item(item, save_state=False)
+            container[idx] = item[1]
 
     def _process(self, item):
         # Remove noise.
@@ -546,6 +553,8 @@ class MorseTranslator(BaseTranslator):
         for container, config, collection, choice in pairs:
             must_analyse = added_item and choice
             if len(container) >= config["min_length"] and must_analyse:
+                stype = config["type"] == "signals"
+                self._correct_container(container, stype)
                 signals = self._analyse(container, config)
                 collection.extend(signals or [])
 
