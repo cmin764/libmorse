@@ -75,7 +75,7 @@ def get_mor_code(name):
     return mor_code
 
 
-def humanize_mor_code(morse_code, unit=settings.UNIT, ratio=7.0,
+def humanize_mor_code(morse_code, unit=settings.UNIT, ratio=8.0,
                       split=False):
     """Add an expected silence at the end of the morse code."""
     length = unit * ratio
