@@ -431,6 +431,37 @@ class MorseTranslator(BaseTranslator):
             return True
         return False
 
+    def _correct_item(self, item):
+        """Save some states regarding the given signal/silence,
+        while normalizing it to a desired length.
+        """
+        unit = self.unit
+        if not unit:
+            return item
+
+        stype, slen = item
+        state = None  # nothing special
+        if stype:
+            # Analysing a signal.
+            conf = self.config["signals"]
+        else:
+            # Analysing a silence.
+            conf = self.config["silences"]
+
+        # Check a long signal/silence.
+        max_ratio = self._get_minmax_ratio(conf["ratios"])
+        max_length = max_ratio * unit
+        delta = slen - max_length
+        limit = conf["mean_min_diff"] * unit
+        if delta > limit:
+            slen = max_length
+            if not stype:
+                state = STATE.LONG_PAUSE
+
+        if state:
+            self.last_state = state
+        return stype, slen
+
     def _process(self, item):
         # Remove noise.
         unit = self.unit
@@ -495,7 +526,7 @@ class MorseTranslator(BaseTranslator):
                     # therefore we don't have a last item anymore.
                     self.last_item = None
                     # And also, we'll not accept the same signal/silence
-                    # anymore, until something new will come.
+                    # anymore, until something different will come.
                     self._skip_type = item[0]
 
         else:
@@ -532,37 +563,6 @@ class MorseTranslator(BaseTranslator):
         # Parse the actual morse code and send the result for the output
         # queue if applicable.
         return self._parse_morse_code() if news else self.CLOSE_SENTINEL
-
-    def _correct_item(self, item):
-        """Save some states regarding the given signal/silence,
-        while normalizing it to a desired length.
-        """
-        unit = self.unit
-        if not unit:
-            return item
-
-        stype, slen = item
-        state = None    # nothing special
-        if stype:
-            # Analysing a signal.
-            conf = self.config["signals"]
-        else:
-            # Analysing a silence.
-            conf = self.config["silences"]
-
-        # Check a long signal/silence.
-        max_ratio = self._get_minmax_ratio(conf["ratios"])
-        max_length = max_ratio * unit
-        delta = slen - max_length
-        limit = conf["mean_min_diff"] * unit
-        if delta > limit:
-            slen = max_length
-            if not stype:
-                state = STATE.LONG_PAUSE
-
-        if state:
-            self.last_state = state
-        return stype, slen
 
     @property
     def medium_gap_ratio(self):
