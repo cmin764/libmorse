@@ -7,6 +7,7 @@ Convert timed signals into alphabet.
 
 For this project, we're gonna use Python 2 version.
 
+
 #### Install Python interpreter and pip:
 
 *Linux*
@@ -22,6 +23,7 @@ $ sudo -H easy_install -U pip
 
 Make sure that you're using the correct version of pip, by running
 `pip --version`. It should use the Python 2 version, if not, try with *pip2*.
+
 
 #### Clone repository and install package:
 
@@ -51,6 +53,7 @@ project directory.
 ```bat
 > python bin\libmorse --help
 ```
+
 
 #### Within CLI:
 
@@ -93,6 +96,7 @@ MORSE CODE
 
 Same commands, just directly execute the `libmorse` script without the need to
 supply paths, like in the top Windows examples above.
+
 
 #### Within module:
 
@@ -202,6 +206,7 @@ below.*
 
 If you want to develop **libmorse**, do the following:
 
+
 #### Optionally install virtualenv:
 
 *Linux*
@@ -232,6 +237,7 @@ Now install the necessary pip packages and create your first virtual environment
 Use `workon morseus` command to activate the virtual environment every time you
 want to work through it and `deactivate` for leaving it.
 
+
 #### Install requirements, develop and test:
 
 Don't forget to uninstall the package first (if installed):
@@ -250,6 +256,7 @@ $ python setup.py test
 
 Don't forget to run with `sudo -H` if you're working outside the virtualenv.
 
+
 #### Run tests, create and serve documentation:
 
 ```bash
@@ -264,6 +271,8 @@ Enter http://localhost:8000 to view documentation.
 
 * Homepage: https://cosminpoieana.wordpress.com/
 * Documentation: https://libmorse.readthedocs.io/
+* Paper: https://goo.gl/H6JfTw
+* App: https://github.com/cmin764/morseus
 * Source: https://github.com/cmin764/libmorse.git
 * License: MIT
 * Authors:
