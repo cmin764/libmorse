@@ -271,7 +271,7 @@ Enter http://localhost:8000 to view documentation.
 
 * Homepage: https://cosminpoieana.wordpress.com/
 * Documentation: https://libmorse.readthedocs.io/
-* Paper: https://goo.gl/H6JfTw
+* Paper (RO): https://goo.gl/H6JfTw
 * App: https://github.com/cmin764/morseus
 * Source: https://github.com/cmin764/libmorse.git
 * License: MIT
