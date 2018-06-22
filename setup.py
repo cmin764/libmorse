@@ -2,6 +2,7 @@
 
 
 import os
+import re
 import site
 import sys
 from distutils import sysconfig
@@ -68,7 +69,7 @@ ETC, RES = map(lambda arg: os.path.join(arg, "libmorse"), ["etc", "res"])
 
 setup(
     name="libmorse",
-    version="0.6.3",
+    version="0.6.4",
     description="Convert timed signals into alphabet.",
     long_description=read("README.md") or "",
     url="https://github.com/cmin764/libmorse",
