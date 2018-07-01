@@ -130,8 +130,6 @@ def main():
         args.function(args)
     except Exception as exc:
         log.error(exc)
-        # FIXME(cmiN): remove this after releasing a stable version
-        raise
     else:
         exc = None
         log.info("Operation completed successfully.")
