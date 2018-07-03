@@ -69,7 +69,7 @@ ETC, RES = map(lambda arg: os.path.join(arg, "libmorse"), ["etc", "res"])
 
 setup(
     name="libmorse",
-    version="0.6.6",
+    version="0.6.7",
     description="Convert timed signals into alphabet.",
     long_description=read("README.md") or "",
     url="https://github.com/cmin764/libmorse",
