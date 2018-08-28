@@ -51,7 +51,7 @@ def receive_function(args):
         )
         items = []
         gap = libmorse.MEDIUM_GAP
-        for word in stream.read().split(gap):
+        for word in stream.read().strip().split(gap):
             items.extend(list(word) + [gap])
         symbols = converter.add(items)
     else:
